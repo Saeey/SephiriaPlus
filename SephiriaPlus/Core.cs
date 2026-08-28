@@ -119,6 +119,7 @@ namespace SephiriaPlus
         private UI_GameOverLabel retryButtonOwner;
         private GameObject retryButtonObject;
         private UI_HorayButton retryButton;
+        private TextMeshProUGUI[] retryButtonLabels = new TextMeshProUGUI[0];
         private bool retryButtonLayoutApplied;
         private float nextPollTime;
 
@@ -330,10 +331,14 @@ namespace SephiriaPlus
 
                 retryButton.onClick.RemoveAllListeners();
                 retryButton.onClick.AddListener(RequestCheckpointRetry);
-                TextMeshProUGUI[] labels = retryObject.GetComponentsInChildren<TextMeshProUGUI>(true);
-                foreach (TextMeshProUGUI label in labels)
+                retryButtonLabels = retryObject.GetComponentsInChildren<TextMeshProUGUI>(true);
+                foreach (MonoBehaviour behaviour in retryObject.GetComponentsInChildren<MonoBehaviour>(true))
                 {
-                    label.text = "重试";
+                    if (behaviour != retryButton &&
+                        behaviour.GetType().Name.IndexOf("Localiz", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        behaviour.enabled = false;
+                    }
                 }
 
                 retryButtonOwner = gameOver;
@@ -352,9 +357,13 @@ namespace SephiriaPlus
                             checkpointCurrent != null && checkpointRun != null && !retryInProgress;
             retryButtonObject.SetActive(buttonsVisible);
             retryButton.interactable = canRetry;
-            if (retryButton.text != null)
+            string buttonText = checkpointCurrent == null ? "无检查点" : retryInProgress ? "载入中" : "重试";
+            foreach (TextMeshProUGUI label in retryButtonLabels)
             {
-                retryButton.text.text = checkpointCurrent == null ? "无检查点" : retryInProgress ? "载入中" : "重试";
+                if (label != null)
+                {
+                    label.text = buttonText;
+                }
             }
         }
 
@@ -376,7 +385,7 @@ namespace SephiriaPlus
             }
 
             float originalWidth = Mathf.Min(destinyRect.rect.width, returnRect.rect.width);
-            float buttonWidth = Mathf.Max(100f, originalWidth * 0.55f);
+            float buttonWidth = Mathf.Max(100f, originalWidth * 0.48f);
             destinyRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, buttonWidth);
             returnRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, buttonWidth);
             retryRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, buttonWidth);
