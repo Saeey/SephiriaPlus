@@ -4,8 +4,10 @@ using System.IO;
 using System.Reflection;
 using Mirror;
 using Newtonsoft.Json;
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
@@ -114,6 +116,8 @@ namespace SephiriaPlus
         private float checkpointCaptureTime = -1f;
         private Key checkpointRetryKey = Key.F8;
         private bool retryInProgress;
+        private UI_GameOverLabel retryButtonOwner;
+        private UI_HorayButton retryButton;
         private float nextPollTime;
 
         public void Configure(ModConfig loadedConfig)
@@ -266,9 +270,7 @@ namespace SephiriaPlus
 
         private void HandleCheckpointRetryInput()
         {
-            if (!config.EnableCheckpointRetry || retryInProgress || !NetworkServer.active ||
-                checkpointCurrent == null || checkpointRun == null || Keyboard.current == null ||
-                !Keyboard.current[checkpointRetryKey].wasPressedThisFrame)
+            if (!config.EnableCheckpointRetry)
             {
                 return;
             }
@@ -276,7 +278,82 @@ namespace SephiriaPlus
             UI_GameOverLabel gameOver = UIManager.Instance != null
                 ? UIManager.Instance.GetElement<UI_GameOverLabel>()
                 : null;
-            if (gameOver == null || !gameOver.IsOpened)
+            EnsureRetryButton(gameOver);
+
+            if (gameOver == null || !gameOver.IsOpened || retryInProgress || !NetworkServer.active ||
+                checkpointCurrent == null || checkpointRun == null || Keyboard.current == null ||
+                !Keyboard.current[checkpointRetryKey].wasPressedThisFrame)
+            {
+                return;
+            }
+
+            RequestCheckpointRetry();
+        }
+
+        private void EnsureRetryButton(UI_GameOverLabel gameOver)
+        {
+            if (gameOver == null)
+            {
+                return;
+            }
+
+            if (retryButton == null || retryButtonOwner != gameOver)
+            {
+                GameObject source = gameOver.treeShopButton != null
+                    ? gameOver.treeShopButton
+                    : gameOver.button != null ? gameOver.button.gameObject : null;
+                if (source == null || source.transform.parent == null)
+                {
+                    return;
+                }
+
+                GameObject retryObject = Object.Instantiate(source, source.transform.parent);
+                retryObject.name = "SephiriaPlus_RetryCheckpointButton";
+                if (gameOver.button != null && gameOver.button.transform.parent == retryObject.transform.parent)
+                {
+                    retryObject.transform.SetSiblingIndex(gameOver.button.transform.GetSiblingIndex());
+                }
+
+                retryButton = retryObject.GetComponent<UI_HorayButton>();
+                if (retryButton == null)
+                {
+                    retryButton = retryObject.GetComponentInChildren<UI_HorayButton>(true);
+                }
+
+                if (retryButton == null)
+                {
+                    Object.Destroy(retryObject);
+                    return;
+                }
+
+                retryButton.onClick.RemoveAllListeners();
+                retryButton.onClick.AddListener(RequestCheckpointRetry);
+                TextMeshProUGUI[] labels = retryObject.GetComponentsInChildren<TextMeshProUGUI>(true);
+                foreach (TextMeshProUGUI label in labels)
+                {
+                    label.text = "重试";
+                }
+
+                retryButtonOwner = gameOver;
+                retryObject.SetActive(false);
+                Debug.Log("[SephiriaPlus] retry button added to the game-over screen.");
+            }
+
+            bool buttonsVisible = gameOver.IsOpened && gameOver.button != null && gameOver.button.gameObject.activeSelf;
+            bool canRetry = buttonsVisible && NetworkServer.active &&
+                            checkpointCurrent != null && checkpointRun != null && !retryInProgress;
+            retryButton.gameObject.SetActive(buttonsVisible);
+            retryButton.interactable = canRetry;
+            if (retryButton.text != null)
+            {
+                retryButton.text.text = checkpointCurrent == null ? "无检查点" : retryInProgress ? "载入中" : "重试";
+            }
+        }
+
+        private void RequestCheckpointRetry()
+        {
+            if (!config.EnableCheckpointRetry || retryInProgress || !NetworkServer.active ||
+                checkpointCurrent == null || checkpointRun == null)
             {
                 return;
             }
