@@ -23,12 +23,30 @@ dotnet build .\SephiriaPlus\SephiriaPlus.csproj -c Release `
 
 完整图文式步骤与故障排查请阅读 `安装手册.md`。
 
-将以下两个文件放入游戏目录：
+将以下三个文件放入游戏目录：
 
 ```text
 Sephiria\AddOns\SephiriaPlus\SephiriaPlus.dll
 Sephiria\AddOns\SephiriaPlus\metadata.json
+Sephiria\AddOns\SephiriaPlus\config.json
 ```
+
+## 配置
+
+关闭游戏后编辑 `Sephiria\AddOns\SephiriaPlus\config.json`：
+
+```json
+{
+  "EnableInfiniteReroll": true,
+  "RerollDiceTarget": 99,
+  "EnableTalentPointMultiplier": true,
+  "TalentPointMultiplier": 10,
+  "EnableExtraInventorySlots": true,
+  "ExtraInventorySlots": 18
+}
+```
+
+三个 `Enable...` 项可以分别关闭无限刷新、天赋倍率和背包扩容；数字项分别控制目标骰子数、天赋倍率和额外格数。配置由房主启动时读取，修改后需要重启游戏。
 
 启动游戏并进入城镇或地牢后，可以在以下日志中确认加载：
 
@@ -40,7 +58,7 @@ Sephiria\AddOns\SephiriaPlus\metadata.json
 
 ```text
 [AddOnLoader] 'SephiriaPlus' v1.4.0
-[SephiriaPlus] loaded. The host will refill reroll dice for every player.
+[SephiriaPlus] loaded with config: reroll=True (target 99), talent=True (x10), inventory=True (+18)
 ```
 
 ## 卸载

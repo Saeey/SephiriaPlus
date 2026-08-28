@@ -17,6 +17,10 @@
       <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\Mirror.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>

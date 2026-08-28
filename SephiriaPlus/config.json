@@ -1,0 +1,8 @@
+{
+  "EnableInfiniteReroll": true,
+  "RerollDiceTarget": 99,
+  "EnableTalentPointMultiplier": true,
+  "TalentPointMultiplier": 10,
+  "EnableExtraInventorySlots": true,
+  "ExtraInventorySlots": 18
+}
