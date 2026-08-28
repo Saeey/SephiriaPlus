@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.2.1")]
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.2.2")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
@@ -47,7 +47,7 @@ namespace SephiriaPlus
         public bool EnableTalentPointMultiplier = true;
         public int TalentPointMultiplier = 10;
         public bool EnableExtraInventorySlots = true;
-        public int ExtraInventorySlots = 18;
+        public int ExtraInventorySlots = 30;
         public bool EnableCheckpointRetry = true;
         public string CheckpointRetryKey = "F8";
         public bool EnableArtifactSchoolFilter = true;
@@ -341,7 +341,7 @@ namespace SephiriaPlus
             {
                 // The game recalculated this same inventory (for example after a
                 // talent/passive update). Treat the new value as vanilla and restore
-                // exactly one configured bonus instead of stacking another +18.
+                // exactly one configured bonus instead of stacking it again.
                 state.VanillaStorage = currentStorage;
                 short add = (short)Mathf.Min(config.ExtraInventorySlots, short.MaxValue - currentStorage);
                 state.LastAppliedStorage = (short)(currentStorage + add);

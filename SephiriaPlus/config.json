@@ -4,7 +4,7 @@
   "EnableTalentPointMultiplier": true,
   "TalentPointMultiplier": 10,
   "EnableExtraInventorySlots": true,
-  "ExtraInventorySlots": 18,
+  "ExtraInventorySlots": 30,
   "EnableCheckpointRetry": true,
   "CheckpointRetryKey": "F8",
   "EnableArtifactSchoolFilter": true,
