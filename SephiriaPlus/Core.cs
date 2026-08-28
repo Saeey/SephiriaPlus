@@ -389,7 +389,13 @@ namespace SephiriaPlus
             destinyRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, buttonWidth);
             returnRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, buttonWidth);
             retryRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, buttonWidth);
-            retryRect.position = (destinyRect.position + returnRect.position) * 0.5f;
+            Vector3 destinyPosition = destinyRect.position;
+            Vector3 returnPosition = returnRect.position;
+            Vector3 retryPosition = (destinyPosition + returnPosition) * 0.5f;
+            Vector3 spacingOffset = (returnPosition - destinyPosition) * 0.07f;
+            destinyRect.position = destinyPosition - spacingOffset;
+            returnRect.position = returnPosition + spacingOffset;
+            retryRect.position = retryPosition;
             retryRect.SetAsLastSibling();
             retryButtonLayoutApplied = true;
             Debug.Log("[SephiriaPlus] retry button world-position layout applied at " + retryRect.position +
