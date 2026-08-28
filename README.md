@@ -7,6 +7,7 @@
 - 奖励和铁匠等消耗刷新骰子的界面可以持续刷新。
 - 所有玩家从命运刻印获得的天赋点调整为原版的 10 倍，基础点数保持原版数值。
 - 所有玩家的主背包增加 18 格，即增加 3 整行。
+- 每次进入新关卡自动保存入口检查点；失败结算时由房主按 `F8` 恢复原装备、背包、等级和资源并无限重试。
 - 使用游戏自带的 HorayModAPI，无需 MelonLoader 或 BepInEx。
 - Mod 本身不直接改写游戏程序集；使用前建议备份存档，卸载前应清空额外背包区域并将天赋重置到原版上限。
 - 联机只需房主安装，队友无需安装；房主会为房间内所有玩家补充骰子。
@@ -42,11 +43,13 @@ Sephiria\AddOns\SephiriaPlus\config.json
   "EnableTalentPointMultiplier": true,
   "TalentPointMultiplier": 10,
   "EnableExtraInventorySlots": true,
-  "ExtraInventorySlots": 18
+  "ExtraInventorySlots": 18,
+  "EnableCheckpointRetry": true,
+  "CheckpointRetryKey": "F8"
 }
 ```
 
-三个 `Enable...` 项可以分别关闭无限刷新、天赋倍率和背包扩容；数字项分别控制目标骰子数、天赋倍率和额外格数。配置由房主启动时读取，修改后需要重启游戏。
+四个 `Enable...` 项可以分别关闭无限刷新、天赋倍率、背包扩容和检查点重试；数字项分别控制目标骰子数、天赋倍率和额外格数。失败结算界面中由房主按 `CheckpointRetryKey` 指定的按键恢复本关入口状态。配置由房主启动时读取，修改后需要重启游戏。
 
 启动游戏并进入城镇或地牢后，可以在以下日志中确认加载：
 
@@ -58,7 +61,7 @@ Sephiria\AddOns\SephiriaPlus\config.json
 
 ```text
 [AddOnLoader] 'SephiriaPlus' v1.4.0
-[SephiriaPlus] loaded with config: reroll=True (target 99), talent=True (x10), inventory=True (+18)
+[SephiriaPlus] loaded with config: reroll=True (target 99), talent=True (x10), inventory=True (+18), checkpointRetry=True (F8)
 ```
 
 ## 卸载

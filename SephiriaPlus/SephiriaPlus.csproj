@@ -25,6 +25,10 @@
       <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\Unity.InputSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
   </ItemGroup>
 
   <Target Name="ValidateSephiriaPath" BeforeTargets="ResolveReferences">

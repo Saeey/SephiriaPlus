@@ -1,9 +1,11 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Mirror;
 using Newtonsoft.Json;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace SephiriaPlus
 {
@@ -47,6 +49,8 @@ namespace SephiriaPlus
         public int TalentPointMultiplier = 10;
         public bool EnableExtraInventorySlots = true;
         public int ExtraInventorySlots = 18;
+        public bool EnableCheckpointRetry = true;
+        public string CheckpointRetryKey = "F8";
 
         public static ModConfig Load()
         {
@@ -83,7 +87,8 @@ namespace SephiriaPlus
         {
             return "reroll=" + EnableInfiniteReroll + " (target " + RerollDiceTarget + ")" +
                    ", talent=" + EnableTalentPointMultiplier + " (x" + TalentPointMultiplier + ")" +
-                   ", inventory=" + EnableExtraInventorySlots + " (+" + ExtraInventorySlots + ")";
+                   ", inventory=" + EnableExtraInventorySlots + " (+" + ExtraInventorySlots + ")" +
+                   ", checkpointRetry=" + EnableCheckpointRetry + " (" + CheckpointRetryKey + ")";
         }
     }
 
@@ -93,14 +98,32 @@ namespace SephiriaPlus
         private static readonly FieldInfo AddedPassiveField = typeof(TreeShopItemStorage).GetField(
             "addedPassive",
             BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo CurrentSaveField = typeof(SaveManager).GetField(
+            "current",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        private static readonly FieldInfo CurrentRunSaveField = typeof(SaveManager).GetField(
+            "currentRun",
+            BindingFlags.Static | BindingFlags.NonPublic);
         private readonly Dictionary<int, TalentPointState> talentPointStates = new Dictionary<int, TalentPointState>();
         private readonly HashSet<int> expandedInventories = new HashSet<int>();
         private ModConfig config = new ModConfig();
+        private SaveData checkpointCurrent;
+        private SaveData checkpointRun;
+        private string checkpointFloorGuid = string.Empty;
+        private string observedFloorGuid = string.Empty;
+        private float checkpointCaptureTime = -1f;
+        private Key checkpointRetryKey = Key.F8;
+        private bool retryInProgress;
         private float nextPollTime;
 
         public void Configure(ModConfig loadedConfig)
         {
             config = loadedConfig ?? new ModConfig();
+            if (!System.Enum.TryParse(config.CheckpointRetryKey, true, out checkpointRetryKey))
+            {
+                checkpointRetryKey = Key.F8;
+                Debug.LogWarning("[SephiriaPlus] invalid CheckpointRetryKey; using F8.");
+            }
         }
 
         private sealed class TalentPointState
@@ -111,6 +134,8 @@ namespace SephiriaPlus
 
         private void Update()
         {
+            HandleCheckpointRetryInput();
+
             if (Time.unscaledTime < nextPollTime)
             {
                 return;
@@ -127,11 +152,17 @@ namespace SephiriaPlus
             }
 
             PlayerAvatar[] players = Object.FindObjectsByType<PlayerAvatar>(FindObjectsSortMode.None);
+            PlayerAvatar hostPlayer = null;
             foreach (PlayerAvatar player in players)
             {
                 if (player == null || !player.isServer)
                 {
                     continue;
+                }
+
+                if (hostPlayer == null || player.isOwned)
+                {
+                    hostPlayer = player;
                 }
 
                 if (config.EnableInfiniteReroll && player.rerollDice < config.RerollDiceTarget)
@@ -194,6 +225,105 @@ namespace SephiriaPlus
                 state.VanillaAddedPoints = vanillaAddedPoints;
                 state.LastAppliedCap = multipliedCap;
             }
+
+            UpdateCheckpoint(hostPlayer);
+        }
+
+        private void UpdateCheckpoint(PlayerAvatar hostPlayer)
+        {
+            if (!config.EnableCheckpointRetry || retryInProgress || hostPlayer == null ||
+                SaveManager.Current == null || SaveManager.CurrentRun == null ||
+                !SaveManager.CurrentRun.GetBool("RunStarted", false))
+            {
+                return;
+            }
+
+            string floorGuid = hostPlayer.currentFloorGuid;
+            if (string.IsNullOrWhiteSpace(floorGuid))
+            {
+                return;
+            }
+
+            if (floorGuid != observedFloorGuid)
+            {
+                observedFloorGuid = floorGuid;
+                checkpointCaptureTime = Time.unscaledTime + 0.75f;
+            }
+
+            if (checkpointCaptureTime < 0f || Time.unscaledTime < checkpointCaptureTime)
+            {
+                return;
+            }
+
+            checkpointCaptureTime = -1f;
+            checkpointCurrent = SaveManager.Current.Copy();
+            checkpointRun = SaveManager.CurrentRun.Copy();
+            checkpointCurrent.enableSave = true;
+            checkpointRun.enableSave = true;
+            checkpointFloorGuid = floorGuid;
+            Debug.Log("[SephiriaPlus] checkpoint captured at floor " + checkpointFloorGuid + ".");
+        }
+
+        private void HandleCheckpointRetryInput()
+        {
+            if (!config.EnableCheckpointRetry || retryInProgress || !NetworkServer.active ||
+                checkpointCurrent == null || checkpointRun == null || Keyboard.current == null ||
+                !Keyboard.current[checkpointRetryKey].wasPressedThisFrame)
+            {
+                return;
+            }
+
+            UI_GameOverLabel gameOver = UIManager.Instance != null
+                ? UIManager.Instance.GetElement<UI_GameOverLabel>()
+                : null;
+            if (gameOver == null || !gameOver.IsOpened)
+            {
+                return;
+            }
+
+            StartCoroutine(RestoreCheckpointCoroutine());
+        }
+
+        private IEnumerator RestoreCheckpointCoroutine()
+        {
+            retryInProgress = true;
+            HorayNetworkManager networkManager = NetworkManager.singleton as HorayNetworkManager;
+            if (networkManager == null || CurrentSaveField == null || CurrentRunSaveField == null)
+            {
+                Debug.LogError("[SephiriaPlus] checkpoint retry is unavailable because required game fields were not found.");
+                retryInProgress = false;
+                yield break;
+            }
+
+            SaveData previousRun = SaveManager.CurrentRun;
+            int chapter = checkpointRun.GetInt("CurrentGame", -1);
+            Debug.Log("[SephiriaPlus] restoring checkpoint at floor " + checkpointFloorGuid + ".");
+            networkManager.RestartGame(false, chapter);
+
+            float timeout = Time.unscaledTime + 5f;
+            while (ReferenceEquals(SaveManager.CurrentRun, previousRun) && Time.unscaledTime < timeout)
+            {
+                yield return null;
+            }
+
+            if (ReferenceEquals(SaveManager.CurrentRun, previousRun))
+            {
+                Debug.LogError("[SephiriaPlus] checkpoint retry timed out while waiting for a new run save.");
+                retryInProgress = false;
+                yield break;
+            }
+
+            SaveData restoredCurrent = checkpointCurrent.Copy();
+            SaveData restoredRun = checkpointRun.Copy();
+            restoredCurrent.enableSave = true;
+            restoredRun.enableSave = true;
+            CurrentSaveField.SetValue(null, restoredCurrent);
+            CurrentRunSaveField.SetValue(null, restoredRun);
+            SaveManager.Save(true, true);
+
+            yield return new WaitForSecondsRealtime(1.5f);
+            retryInProgress = false;
+            Debug.Log("[SephiriaPlus] checkpoint restored. Press " + checkpointRetryKey + " after another defeat to retry again.");
         }
 
         private void OnDestroy()
