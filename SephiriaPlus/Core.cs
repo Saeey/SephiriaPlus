@@ -118,6 +118,7 @@ namespace SephiriaPlus
         private bool retryInProgress;
         private UI_GameOverLabel retryButtonOwner;
         private UI_HorayButton retryButton;
+        private bool retryButtonLayoutApplied;
         private float nextPollTime;
 
         public void Configure(ModConfig loadedConfig)
@@ -335,11 +336,16 @@ namespace SephiriaPlus
                 }
 
                 retryButtonOwner = gameOver;
+                retryButtonLayoutApplied = false;
                 retryObject.SetActive(false);
                 Debug.Log("[SephiriaPlus] retry button added to the game-over screen.");
             }
 
             bool buttonsVisible = gameOver.IsOpened && gameOver.button != null && gameOver.button.gameObject.activeSelf;
+            if (buttonsVisible && !retryButtonLayoutApplied)
+            {
+                ApplyRetryButtonLayout(gameOver);
+            }
             bool canRetry = buttonsVisible && NetworkServer.active &&
                             checkpointCurrent != null && checkpointRun != null && !retryInProgress;
             retryButton.gameObject.SetActive(buttonsVisible);
@@ -348,6 +354,57 @@ namespace SephiriaPlus
             {
                 retryButton.text.text = checkpointCurrent == null ? "无检查点" : retryInProgress ? "载入中" : "重试";
             }
+        }
+
+        private void ApplyRetryButtonLayout(UI_GameOverLabel gameOver)
+        {
+            RectTransform destinyRect = gameOver.treeShopButton != null
+                ? gameOver.treeShopButton.GetComponent<RectTransform>()
+                : null;
+            RectTransform returnRect = gameOver.button != null
+                ? gameOver.button.GetComponent<RectTransform>()
+                : null;
+            RectTransform retryRect = retryButton != null
+                ? retryButton.GetComponent<RectTransform>()
+                : null;
+            if (destinyRect == null || returnRect == null || retryRect == null ||
+                destinyRect.parent != returnRect.parent || destinyRect.parent != retryRect.parent)
+            {
+                return;
+            }
+
+            float leftEdge = Mathf.Min(
+                destinyRect.anchoredPosition.x - destinyRect.rect.width * destinyRect.pivot.x,
+                returnRect.anchoredPosition.x - returnRect.rect.width * returnRect.pivot.x);
+            float rightEdge = Mathf.Max(
+                destinyRect.anchoredPosition.x + destinyRect.rect.width * (1f - destinyRect.pivot.x),
+                returnRect.anchoredPosition.x + returnRect.rect.width * (1f - returnRect.pivot.x));
+            float totalWidth = rightEdge - leftEdge;
+            float gap = Mathf.Clamp(totalWidth * 0.025f, 12f, 30f);
+            float buttonWidth = (totalWidth - gap * 2f) / 3f;
+            if (buttonWidth < 100f)
+            {
+                return;
+            }
+
+            RectTransform leftRect = destinyRect.anchoredPosition.x <= returnRect.anchoredPosition.x
+                ? destinyRect
+                : returnRect;
+            RectTransform rightRect = leftRect == destinyRect ? returnRect : destinyRect;
+            SetButtonHorizontalLayout(leftRect, leftEdge, buttonWidth);
+            SetButtonHorizontalLayout(retryRect, leftEdge + buttonWidth + gap, buttonWidth);
+            SetButtonHorizontalLayout(rightRect, leftEdge + (buttonWidth + gap) * 2f, buttonWidth);
+            retryRect.anchoredPosition = new Vector2(retryRect.anchoredPosition.x, destinyRect.anchoredPosition.y);
+            retryButtonLayoutApplied = true;
+            Debug.Log("[SephiriaPlus] retry button layout applied between destiny and return.");
+        }
+
+        private static void SetButtonHorizontalLayout(RectTransform rect, float left, float width)
+        {
+            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
+            Vector2 position = rect.anchoredPosition;
+            position.x = left + width * rect.pivot.x;
+            rect.anchoredPosition = position;
         }
 
         private void RequestCheckpointRetry()
