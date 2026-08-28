@@ -343,7 +343,7 @@ namespace SephiriaPlus
                 Debug.Log("[SephiriaPlus] retry button added to the game-over screen.");
             }
 
-            bool buttonsVisible = gameOver.IsOpened && gameOver.button != null && gameOver.button.gameObject.activeSelf;
+            bool buttonsVisible = gameOver.IsOpened;
             if (buttonsVisible && !retryButtonLayoutApplied)
             {
                 ApplyRetryButtonLayout(gameOver);
@@ -369,9 +369,22 @@ namespace SephiriaPlus
             RectTransform retryRect = retryButtonObject != null
                 ? retryButtonObject.GetComponent<RectTransform>()
                 : null;
-            if (destinyRect == null || returnRect == null || retryRect == null ||
-                destinyRect.parent != returnRect.parent || destinyRect.parent != retryRect.parent)
+            if (destinyRect == null || returnRect == null || retryRect == null)
             {
+                Debug.LogWarning("[SephiriaPlus] retry button layout is waiting for game-over button RectTransforms.");
+                return;
+            }
+
+            if (destinyRect.parent != returnRect.parent || destinyRect.parent != retryRect.parent)
+            {
+                float fallbackWidth = Mathf.Max(100f, Mathf.Min(destinyRect.rect.width, returnRect.rect.width) * 0.62f);
+                destinyRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, fallbackWidth);
+                returnRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, fallbackWidth);
+                retryRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, fallbackWidth);
+                retryRect.position = (destinyRect.position + returnRect.position) * 0.5f;
+                retryButtonLayoutApplied = true;
+                Debug.Log("[SephiriaPlus] retry button fallback layout applied between " +
+                          destinyRect.name + " and " + returnRect.name + ".");
                 return;
             }
 
