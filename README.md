@@ -1,43 +1,39 @@
 # SephiriaPlus
 
-《赛菲莉娅》的房主增强 Mod。房主进入一局游戏后，所有玩家的刷新骰子低于 99 时都会自动补到 99；命运刻印提供的天赋点变为原版的 10 倍；背包增加 18 格。
+作者：null
+当前版本：2.0.0（BepInEx 版）
+
+SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.0.0 已从游戏 AddOn 迁移到 BepInEx 5，并使用 HarmonyX 对游戏逻辑进行补丁。
 
 ## 功能
 
-- 奖励和铁匠等消耗刷新骰子的界面可以持续刷新。
-- 神器选择界面提供“无 + 全部流派”筛选框；选择流派后再点刷新，候选神器只从该流派中生成。
-- 未打破的隐藏房入口墙会显示闪烁的“隐藏房间”标记。
-- 右上角显示当前战斗房间内玩家的伤害、DPS 和伤害占比，按 `F7` 可显示/隐藏；进入新战斗房间时自动重置，战斗结束后冻结结果。
-- 所有玩家从命运刻印获得的天赋点调整为原版的 10 倍，基础点数保持原版数值。
-- 所有玩家的主背包增加 18 格，即增加 3 整行。
-- 每次进入新关卡自动保存入口检查点；失败结算时由房主点击“重试”按钮（或按 `F8`）恢复原装备、背包、等级和资源并无限重试。
-- 使用游戏自带的 HorayModAPI，无需 MelonLoader 或 BepInEx。
-- Mod 本身不直接改写游戏程序集；使用前建议备份存档，卸载前应清空额外背包区域并将天赋重置到原版上限。
-- 联机只需房主安装，队友无需安装；房主会为房间内所有玩家补充骰子。
-- 普通客户端单独安装时不会生效，也不会向房主发送修改请求。
+- 无限刷新：刷新次数自动补充至 99。
+- 神器流派筛选：刷新界面可按流派限定候选神器。
+- 天赋点数 ×10。
+- 背包格子 +18。
+- 失败重试：失败结算界面增加“重试”按钮，也可按 F8。
+- 隐藏房间提示：在小地图上显示隐藏房间标记。
+- DPS 统计：按 F7 显示或隐藏当前房间伤害面板。
 
-## 构建
-
-```powershell
-dotnet build .\SephiriaPlus\SephiriaPlus.csproj -c Release `
-  -p:SephiriaPath="D:\game\Steam\steamapps\common\Sephiria"
-```
+DPS 统计基于游戏实际伤害反馈事件记录伤害，不再通过生命值轮询估算；进入新战斗房间后会开始新的统计周期。面板为本机显示，不会同步给联机队友。
 
 ## 安装
 
-完整图文式步骤与故障排查请阅读 `安装手册.md`。
+1. 从 BepInEx 官方 Releases 下载 `BepInEx_win_x64_5.4.23.5.zip`。
+2. 将 BepInEx 压缩包内容解压到游戏根目录，即 `Sephiria.exe` 所在目录。
+3. 启动一次游戏，让 BepInEx 创建目录，然后退出游戏。
+4. 将本项目发布包中的 `BepInEx` 文件夹合并到游戏根目录。
+5. 最终应存在：
+   - `BepInEx/plugins/SephiriaPlus/SephiriaPlus.dll`
+   - `BepInEx/plugins/SephiriaPlus/config.json`
 
-将以下三个文件放入游戏目录：
+从 1.x 升级时，请删除旧的 `AddOns/SephiriaPlus`，不要同时加载 AddOn 版和 BepInEx 版。
 
-```text
-Sephiria\AddOns\SephiriaPlus\SephiriaPlus.dll
-Sephiria\AddOns\SephiriaPlus\metadata.json
-Sephiria\AddOns\SephiriaPlus\config.json
-```
+详细步骤见 [安装手册](./安装手册.md)。
 
 ## 配置
 
-关闭游戏后编辑 `Sephiria\AddOns\SephiriaPlus\config.json`：
+编辑 `BepInEx/plugins/SephiriaPlus/config.json`，保存后重启游戏：
 
 ```json
 {
@@ -56,23 +52,18 @@ Sephiria\AddOns\SephiriaPlus\config.json
 }
 ```
 
-七个 `Enable...` 项可以分别关闭无限刷新、天赋倍率、背包扩容、检查点重试、神器流派筛选、隐藏房标记和 DPS 面板；数字项分别控制目标骰子数、天赋倍率和额外格数。失败结算界面中由房主点击“命运刻印”和“返回”之间的“重试”按钮恢复本关入口状态，`CheckpointRetryKey` 是备用快捷键，`DpsMeterToggleKey` 用于显示或隐藏 DPS 面板。配置由房主启动时读取，修改后需要重启游戏。
+## 构建
 
-启动游戏并进入城镇或地牢后，可以在以下日志中确认加载：
+需要 .NET SDK、游戏本体以及 BepInEx 5：
 
-```text
-%USERPROFILE%\AppData\LocalLow\TEAMHORAY\Sephiria\Player.log
+```powershell
+dotnet build .\SephiriaPlus\SephiriaPlus.csproj -c Release `
+  -p:SephiriaPath='D:\game\Steam\steamapps\common\Sephiria' `
+  -p:BepInExPath='D:\game\Steam\steamapps\common\Sephiria\BepInEx\core'
 ```
 
-日志应包含：
+## 说明
 
-```text
-[AddOnLoader] 'SephiriaPlus' v1.6.1
-[SephiriaPlus] loaded with config: reroll=True (target 99), talent=True (x10), inventory=True (+18), checkpointRetry=True (F8), artifactFilter=True, hiddenRooms=True, dpsMeter=True (F7)
-```
-
-DPS 统计的房间边界识别和战斗生命周期设计调研参考了 [G-Yoka/SephiriaDpsMeter](https://github.com/G-Yoka/SephiriaDpsMeter)的公开文档与源码。SephiriaPlus 使用游戏原生 AddOn API 独立实现，不包含该项目的代码、资产或 BepInEx/Harmony 依赖。
-
-## 卸载
-
-关闭游戏后删除 `Sephiria\AddOns\SephiriaPlus` 文件夹。
+- 本 Mod 为非官方作品，游戏更新后可能需要适配。
+- 联机时建议所有玩家使用相同版本与配置。由房主控制的游戏逻辑通常只需房主安装；本地 UI（例如 DPS 面板）只会显示在安装者客户端。
+- DPS 功能研究过 Sephiria DPS Meter 的公开实现思路，但本项目为独立实现，没有复制其代码或资源。

@@ -5,10 +5,18 @@
     <Nullable>disable</Nullable>
     <AssemblyName>SephiriaPlus</AssemblyName>
     <RootNamespace>SephiriaPlus</RootNamespace>
-    <Version>1.6.1</Version>
+    <Version>2.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExPath)\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExPath)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="Assembly-CSharp">
       <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>false</Private>
@@ -23,6 +31,10 @@
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine">
+      <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\UnityEngine.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine.TextRenderingModule">
@@ -54,5 +66,9 @@
   <Target Name="ValidateSephiriaPath" BeforeTargets="ResolveReferences">
     <Error Condition="!Exists('$(SephiriaPath)\Sephiria_Data\Managed\Assembly-CSharp.dll')"
            Text="SephiriaPath is invalid. Build with: dotnet build -p:SephiriaPath=&quot;D:\game\Steam\steamapps\common\Sephiria&quot;" />
+  </Target>
+  <Target Name="ValidateBepInExPath" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(BepInExPath)\BepInEx.dll')"
+           Text="BepInExPath is invalid. Point it to BepInEx/core." />
   </Target>
 </Project>

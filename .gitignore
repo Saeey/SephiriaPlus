@@ -1,4 +1,5 @@
 .tools/
+.deps/
 **/bin/
 **/obj/
 dist/

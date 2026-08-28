@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using BepInEx;
+using HarmonyLib;
 using Mirror;
 using Newtonsoft.Json;
 using TMPro;
@@ -12,32 +14,30 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    /// <summary>
-    /// Sephiria built-in AddOn loader entry point.
-    /// </summary>
-    public sealed class Core : HorayModBase
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.0.0")]
+    public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
-        private GameObject controllerObject;
+        private Harmony harmony;
+        private SephiriaPlusController controller;
 
-        protected override void OnModLoaded()
+        private void Awake()
         {
             ModConfig config = ModConfig.Load();
-            controllerObject = new GameObject("SephiriaPlusController");
-            Object.DontDestroyOnLoad(controllerObject);
-            SephiriaPlusController controller = controllerObject.AddComponent<SephiriaPlusController>();
+            controller = gameObject.AddComponent<SephiriaPlusController>();
             controller.Configure(config);
+            harmony = new Harmony("com.null.sephiriaplus");
+            harmony.PatchAll(typeof(Plugin).Assembly);
             Debug.Log(LogPrefix + " loaded with config: " + config.ToLogString());
         }
 
-        protected override void OnModUnloaded()
+        private void OnDestroy()
         {
-            if (controllerObject != null)
+            if (harmony != null)
             {
-                Object.Destroy(controllerObject);
-                controllerObject = null;
+                harmony.UnpatchSelf();
+                harmony = null;
             }
-
             Debug.Log(LogPrefix + " unloaded.");
         }
     }
@@ -145,13 +145,19 @@ namespace SephiriaPlus
         private int dpsRoomSequence;
         private float dpsCombatStartTime = -1f;
         private float dpsCombatEndTime = -1f;
-        private readonly Dictionary<uint, float> dpsDamageBaselines = new Dictionary<uint, float>();
         private readonly Dictionary<uint, DpsPlayerRow> dpsRows = new Dictionary<uint, DpsPlayerRow>();
         private GUIStyle overlayTitleStyle;
         private GUIStyle overlayRowStyle;
         private GUIStyle hiddenRoomStyle;
         private Texture2D overlayBackground;
         private float nextPollTime;
+
+        internal static SephiriaPlusController Instance { get; private set; }
+
+        private void Awake()
+        {
+            Instance = this;
+        }
 
         public void Configure(ModConfig loadedConfig)
         {
@@ -310,34 +316,6 @@ namespace SephiriaPlus
                 BeginDpsRoom(room, players);
             }
 
-            foreach (PlayerAvatar player in players)
-            {
-                if (player == null)
-                {
-                    continue;
-                }
-                uint key = player.netId != 0 ? player.netId : unchecked((uint)player.GetInstanceID());
-                float currentDamage = player.dealsStatistics_LastLocation.Values.Sum();
-                if (!dpsDamageBaselines.TryGetValue(key, out float previousDamage))
-                {
-                    dpsDamageBaselines[key] = currentDamage;
-                    continue;
-                }
-                dpsDamageBaselines[key] = currentDamage;
-                float delta = currentDamage >= previousDamage ? currentDamage - previousDamage : currentDamage;
-                Vector3 position = player.transform.position;
-                if (delta <= 0f || !currentDpsRoom.AllowsPlayer(player.currentFloorGuid, position.x, position.y))
-                {
-                    continue;
-                }
-                if (!dpsRows.TryGetValue(key, out DpsPlayerRow row))
-                {
-                    row = new DpsPlayerRow();
-                    dpsRows.Add(key, row);
-                }
-                row.Name = string.IsNullOrWhiteSpace(player.Name) ? player.playerNameSource : player.Name;
-                row.Damage += delta;
-            }
         }
 
         private void BeginDpsRoom(DpsRoomScope room, PlayerAvatar[] players)
@@ -348,17 +326,85 @@ namespace SephiriaPlus
             dpsCombatStartTime = Time.unscaledTime;
             dpsCombatEndTime = -1f;
             dpsRows.Clear();
-            dpsDamageBaselines.Clear();
-            foreach (PlayerAvatar player in players)
+            Debug.Log("[SephiriaPlus] DPS room #" + dpsRoomSequence + " started.");
+        }
+
+        internal void RecordDamageFeedback(UnitAvatar victim, DamageFeedback[] feedbacks)
+        {
+            if (!config.EnableDpsMeter || feedbacks == null || feedbacks.Length == 0)
             {
-                if (player == null)
+                return;
+            }
+
+            PlayerAvatar[] players = Object.FindObjectsByType<PlayerAvatar>(FindObjectsSortMode.None);
+            PlayerAvatar localPlayer = players.FirstOrDefault(player => player != null && player.isOwned);
+            if (localPlayer == null)
+            {
+                return;
+            }
+            UpdateDpsTimer(localPlayer, players);
+            if (!dpsRoomActive || currentDpsRoom == null)
+            {
+                return;
+            }
+
+            HashSet<uint> playersHitInBatch = new HashSet<uint>();
+            foreach (DamageFeedback feedback in feedbacks)
+            {
+                if (feedback == null || feedback.damageValue <= 0 || feedback.msgType > 2)
                 {
                     continue;
                 }
-                uint key = player.netId != 0 ? player.netId : unchecked((uint)player.GetInstanceID());
-                dpsDamageBaselines[key] = player.dealsStatistics_LastLocation.Values.Sum();
+                UnitAvatar actualVictim = feedback.self != null ? feedback.self : victim;
+                if (actualVictim == null || ResolveOwningPlayer(actualVictim) != null)
+                {
+                    continue;
+                }
+                PlayerAvatar owner = ResolveOwningPlayer(feedback.attacker);
+                if (owner == null)
+                {
+                    continue;
+                }
+                Vector3 ownerPosition = owner.transform.position;
+                Vector3 victimPosition = actualVictim.transform.position;
+                if (!currentDpsRoom.AllowsDamage(owner.currentFloorGuid,
+                        ownerPosition.x, ownerPosition.y, victimPosition.x, victimPosition.y))
+                {
+                    continue;
+                }
+
+                uint key = owner.netId != 0 ? owner.netId : unchecked((uint)owner.GetInstanceID());
+                if (!dpsRows.TryGetValue(key, out DpsPlayerRow row))
+                {
+                    row = new DpsPlayerRow();
+                    dpsRows.Add(key, row);
+                }
+                row.Name = string.IsNullOrWhiteSpace(owner.Name) ? owner.playerNameSource : owner.Name;
+                row.Damage += feedback.damageValue;
+                if (playersHitInBatch.Add(key))
+                {
+                    row.Hits++;
+                }
             }
-            Debug.Log("[SephiriaPlus] DPS room #" + dpsRoomSequence + " started.");
+        }
+
+        private static PlayerAvatar ResolveOwningPlayer(UnitAvatar unit)
+        {
+            UnitAvatar current = unit;
+            for (int depth = 0; current != null && depth < 8; depth++)
+            {
+                if (current is PlayerAvatar player)
+                {
+                    return player;
+                }
+                UnitAvatar leader = current.NetworkLeader;
+                if (leader == null || leader == current)
+                {
+                    break;
+                }
+                current = leader;
+            }
+            return null;
         }
 
         private void EndDpsRoom()
@@ -553,7 +599,7 @@ namespace SephiriaPlus
                 float share = teamDamage > 0f ? damage / teamDamage * 100f : 0f;
                 string row = (i + 1) + ". " + rowData.Name + "   " +
                              Mathf.FloorToInt(damage) + "  |  " + Mathf.FloorToInt(dps) + " DPS  |  " +
-                             share.ToString("0.0") + "%";
+                             share.ToString("0.0") + "%  |  " + rowData.Hits + "次";
                 GUI.Label(new Rect(panel.x + 14f, y, width - 28f, 26f), row, overlayRowStyle);
                 y += 28f;
             }
@@ -1006,6 +1052,10 @@ namespace SephiriaPlus
 
         private void OnDestroy()
         {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
             if (artifactFilterContainer != null)
             {
                 Object.Destroy(artifactFilterContainer);
@@ -1049,6 +1099,7 @@ namespace SephiriaPlus
     {
         public string Name = string.Empty;
         public float Damage;
+        public int Hits;
     }
 
     internal sealed class DpsRoomScope
@@ -1084,6 +1135,11 @@ namespace SephiriaPlus
             return string.Equals(floorGuid, playerFloor, System.StringComparison.Ordinal) && Contains(x, y);
         }
 
+        public bool AllowsDamage(string playerFloor, float ownerX, float ownerY, float victimX, float victimY)
+        {
+            return AllowsPlayer(playerFloor, ownerX, ownerY) && Contains(victimX, victimY);
+        }
+
         public bool IsSameRoom(DpsRoomScope other)
         {
             return other != null && spawnerId == other.spawnerId &&
@@ -1107,6 +1163,16 @@ namespace SephiriaPlus
             float currentArea = current.bounds.width * current.bounds.height;
             float candidateArea = candidate.bounds.width * candidate.bounds.height;
             return candidateArea < currentArea ? candidate : current;
+        }
+    }
+
+    [HarmonyPatch(typeof(UnitAvatar), "UserCode_RpcShowAllDamageParticles__DamageFeedback[]")]
+    internal static class DamageFeedbackPatch
+    {
+        [HarmonyPrefix]
+        private static void BeforeDamageFeedback(UnitAvatar __instance, DamageFeedback[] __0)
+        {
+            SephiriaPlusController.Instance?.RecordDamageFeedback(__instance, __0);
         }
     }
 }
