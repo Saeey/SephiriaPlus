@@ -139,10 +139,14 @@ namespace SephiriaPlus
         private string selectedArtifactCategory = string.Empty;
         private Key dpsMeterToggleKey = Key.F7;
         private bool dpsMeterVisible = true;
-        private string dpsFloorGuid = string.Empty;
+        private DpsRoomScope currentDpsRoom;
+        private bool dpsRoomActive;
+        private bool previousBattleState;
+        private int dpsRoomSequence;
         private float dpsCombatStartTime = -1f;
         private float dpsCombatEndTime = -1f;
-        private float previousTeamDamage;
+        private readonly Dictionary<uint, float> dpsDamageBaselines = new Dictionary<uint, float>();
+        private readonly Dictionary<uint, DpsPlayerRow> dpsRows = new Dictionary<uint, DpsPlayerRow>();
         private GUIStyle overlayTitleStyle;
         private GUIStyle overlayRowStyle;
         private GUIStyle hiddenRoomStyle;
@@ -286,36 +290,150 @@ namespace SephiriaPlus
                 return;
             }
 
-            if (dpsFloorGuid != hostPlayer.currentFloorGuid)
+            bool inBattle = hostPlayer.IsInBattle;
+            bool battleStarted = inBattle && !previousBattleState;
+            previousBattleState = inBattle;
+            if (!inBattle)
             {
-                dpsFloorGuid = hostPlayer.currentFloorGuid;
-                dpsCombatStartTime = -1f;
-                dpsCombatEndTime = -1f;
-                previousTeamDamage = 0f;
+                EndDpsRoom();
+                return;
             }
 
-            float teamDamage = 0f;
-            bool anyoneInBattle = false;
+            DpsRoomScope room = FindCurrentDpsRoom(hostPlayer);
+            if (room == null)
+            {
+                EndDpsRoom();
+                return;
+            }
+            if (!dpsRoomActive || battleStarted || !room.IsSameRoom(currentDpsRoom))
+            {
+                BeginDpsRoom(room, players);
+            }
+
             foreach (PlayerAvatar player in players)
             {
-                if (player == null || player.currentFloorGuid != dpsFloorGuid)
+                if (player == null)
                 {
                     continue;
                 }
-                teamDamage += player.dealsStatistics_LastLocation.Values.Sum();
-                anyoneInBattle |= player.IsInBattle;
+                uint key = player.netId != 0 ? player.netId : unchecked((uint)player.GetInstanceID());
+                float currentDamage = player.dealsStatistics_LastLocation.Values.Sum();
+                if (!dpsDamageBaselines.TryGetValue(key, out float previousDamage))
+                {
+                    dpsDamageBaselines[key] = currentDamage;
+                    continue;
+                }
+                dpsDamageBaselines[key] = currentDamage;
+                float delta = currentDamage >= previousDamage ? currentDamage - previousDamage : currentDamage;
+                Vector3 position = player.transform.position;
+                if (delta <= 0f || !currentDpsRoom.AllowsPlayer(player.currentFloorGuid, position.x, position.y))
+                {
+                    continue;
+                }
+                if (!dpsRows.TryGetValue(key, out DpsPlayerRow row))
+                {
+                    row = new DpsPlayerRow();
+                    dpsRows.Add(key, row);
+                }
+                row.Name = string.IsNullOrWhiteSpace(player.Name) ? player.playerNameSource : player.Name;
+                row.Damage += delta;
+            }
+        }
+
+        private void BeginDpsRoom(DpsRoomScope room, PlayerAvatar[] players)
+        {
+            currentDpsRoom = room;
+            dpsRoomActive = true;
+            dpsRoomSequence++;
+            dpsCombatStartTime = Time.unscaledTime;
+            dpsCombatEndTime = -1f;
+            dpsRows.Clear();
+            dpsDamageBaselines.Clear();
+            foreach (PlayerAvatar player in players)
+            {
+                if (player == null)
+                {
+                    continue;
+                }
+                uint key = player.netId != 0 ? player.netId : unchecked((uint)player.GetInstanceID());
+                dpsDamageBaselines[key] = player.dealsStatistics_LastLocation.Values.Sum();
+            }
+            Debug.Log("[SephiriaPlus] DPS room #" + dpsRoomSequence + " started.");
+        }
+
+        private void EndDpsRoom()
+        {
+            if (!dpsRoomActive)
+            {
+                return;
+            }
+            dpsCombatEndTime = Time.unscaledTime;
+            dpsRoomActive = false;
+            Debug.Log("[SephiriaPlus] DPS room #" + dpsRoomSequence + " ended.");
+        }
+
+        private DpsRoomScope FindCurrentDpsRoom(PlayerAvatar player)
+        {
+            string floorGuid = player.currentFloorGuid;
+            Vector3 position = player.transform.position;
+            if (string.IsNullOrEmpty(floorGuid))
+            {
+                return null;
             }
 
-            if (teamDamage > 0f && dpsCombatStartTime < 0f)
+            DpsRoomScope selected = null;
+            foreach (BossSpawner spawner in Object.FindObjectsByType<BossSpawner>(FindObjectsSortMode.None))
             {
-                dpsCombatStartTime = Time.unscaledTime;
-                dpsCombatEndTime = dpsCombatStartTime;
+                if (spawner == null || !spawner.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+                Vector2 origin = spawner.transform.position;
+                selected = DpsRoomScope.SelectContaining(selected,
+                    DpsRoomScope.Create(floorGuid, spawner.GetInstanceID(),
+                        origin + spawner.playerPreventArea_lb, origin + spawner.playerPreventArea_rt),
+                    position.x, position.y);
             }
-            if (teamDamage > previousTeamDamage || anyoneInBattle)
+            if (selected != null)
             {
-                dpsCombatEndTime = Time.unscaledTime;
+                return selected;
             }
-            previousTeamDamage = teamDamage;
+
+            foreach (RandomEnemyPhaseSpawner spawner in Object.FindObjectsByType<RandomEnemyPhaseSpawner>(FindObjectsSortMode.None))
+            {
+                if (spawner != null && spawner.gameObject.activeInHierarchy)
+                {
+                    selected = DpsRoomScope.SelectContaining(selected,
+                        DpsRoomScope.Create(floorGuid, spawner.GetInstanceID(),
+                            spawner.NetworkdetectArea_lb, spawner.NetworkdetectArea_rt),
+                        position.x, position.y);
+                }
+            }
+            foreach (EnemySpawner spawner in Object.FindObjectsByType<EnemySpawner>(FindObjectsSortMode.None))
+            {
+                if (spawner == null || !spawner.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+                Vector2 origin = spawner.transform.position;
+                selected = DpsRoomScope.SelectContaining(selected,
+                    DpsRoomScope.Create(floorGuid, spawner.GetInstanceID(),
+                        origin + spawner.NetworkplayerPreventArea_lb, origin + spawner.NetworkplayerPreventArea_rt),
+                    position.x, position.y);
+            }
+            foreach (CommonEnemySpawner spawner in Object.FindObjectsByType<CommonEnemySpawner>(FindObjectsSortMode.None))
+            {
+                if (spawner == null || !spawner.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+                Vector2 origin = spawner.transform.position;
+                selected = DpsRoomScope.SelectContaining(selected,
+                    DpsRoomScope.Create(floorGuid, spawner.GetInstanceID(),
+                        origin + spawner.NetworkplayerPreventArea_lb, origin + spawner.NetworkplayerPreventArea_rt),
+                    position.x, position.y);
+            }
+            return selected;
         }
 
         private void OnGUI()
@@ -408,35 +526,32 @@ namespace SephiriaPlus
 
         private void DrawDpsMeter()
         {
-            PlayerAvatar[] players = Object.FindObjectsByType<PlayerAvatar>(FindObjectsSortMode.None)
-                .Where(player => player != null && player.currentFloorGuid == dpsFloorGuid)
-                .OrderByDescending(player => player.dealsStatistics_LastLocation.Values.Sum())
-                .ToArray();
-            if (players.Length == 0)
-            {
-                return;
-            }
-
-            float teamDamage = players.Sum(player => player.dealsStatistics_LastLocation.Values.Sum());
+            DpsPlayerRow[] rows = dpsRows.Values.OrderByDescending(row => row.Damage).ToArray();
+            float teamDamage = rows.Sum(row => row.Damage);
             float duration = dpsCombatStartTime < 0f
                 ? 0f
-                : Mathf.Max(0.1f, dpsCombatEndTime - dpsCombatStartTime);
+                : Mathf.Max(0.1f, (dpsRoomActive ? Time.unscaledTime : dpsCombatEndTime) - dpsCombatStartTime);
             float width = 400f;
-            float height = 72f + players.Length * 28f;
+            float height = 76f + Mathf.Max(1, rows.Length) * 28f;
             Rect panel = new Rect(Screen.width - width - 24f, 24f, width, height);
             GUI.DrawTexture(panel, overlayBackground);
             GUI.Label(new Rect(panel.x + 14f, panel.y + 8f, width - 28f, 28f),
-                "DPS统计  " + duration.ToString("0.0") + "秒  [" + dpsMeterToggleKey + "]", overlayTitleStyle);
+                "DPS统计  房间#" + dpsRoomSequence + "  " + duration.ToString("0.0") + "秒  [" +
+                dpsMeterToggleKey + "]", overlayTitleStyle);
 
             float y = panel.y + 40f;
-            for (int i = 0; i < players.Length; i++)
+            if (rows.Length == 0)
             {
-                PlayerAvatar player = players[i];
-                float damage = player.dealsStatistics_LastLocation.Values.Sum();
+                GUI.Label(new Rect(panel.x + 14f, y, width - 28f, 26f),
+                    dpsRoomActive ? "等待本房间伤害数据" : "进入战斗房间后开始统计", overlayRowStyle);
+            }
+            for (int i = 0; i < rows.Length; i++)
+            {
+                DpsPlayerRow rowData = rows[i];
+                float damage = rowData.Damage;
                 float dps = duration > 0f ? damage / duration : 0f;
                 float share = teamDamage > 0f ? damage / teamDamage * 100f : 0f;
-                string playerName = string.IsNullOrWhiteSpace(player.Name) ? player.playerNameSource : player.Name;
-                string row = (i + 1) + ". " + playerName + "   " +
+                string row = (i + 1) + ". " + rowData.Name + "   " +
                              Mathf.FloorToInt(damage) + "  |  " + Mathf.FloorToInt(dps) + " DPS  |  " +
                              share.ToString("0.0") + "%";
                 GUI.Label(new Rect(panel.x + 14f, y, width - 28f, 26f), row, overlayRowStyle);
@@ -928,5 +1043,70 @@ namespace SephiriaPlus
         public string Category;
         public string DisplayName;
         public TextMeshProUGUI[] Labels;
+    }
+
+    internal sealed class DpsPlayerRow
+    {
+        public string Name = string.Empty;
+        public float Damage;
+    }
+
+    internal sealed class DpsRoomScope
+    {
+        private readonly string floorGuid;
+        private readonly int spawnerId;
+        private readonly Rect bounds;
+
+        private DpsRoomScope(string floor, int id, Rect roomBounds)
+        {
+            floorGuid = floor;
+            spawnerId = id;
+            bounds = roomBounds;
+        }
+
+        public static DpsRoomScope Create(string floor, int id, Vector2 lower, Vector2 upper)
+        {
+            if (string.IsNullOrEmpty(floor) || id == 0 || upper.x <= lower.x || upper.y <= lower.y)
+            {
+                return null;
+            }
+            return new DpsRoomScope(floor, id,
+                Rect.MinMaxRect(lower.x, lower.y, upper.x, upper.y));
+        }
+
+        public bool Contains(float x, float y)
+        {
+            return x >= bounds.xMin && x <= bounds.xMax && y >= bounds.yMin && y <= bounds.yMax;
+        }
+
+        public bool AllowsPlayer(string playerFloor, float x, float y)
+        {
+            return string.Equals(floorGuid, playerFloor, System.StringComparison.Ordinal) && Contains(x, y);
+        }
+
+        public bool IsSameRoom(DpsRoomScope other)
+        {
+            return other != null && spawnerId == other.spawnerId &&
+                   string.Equals(floorGuid, other.floorGuid, System.StringComparison.Ordinal);
+        }
+
+        public static DpsRoomScope SelectContaining(
+            DpsRoomScope current,
+            DpsRoomScope candidate,
+            float x,
+            float y)
+        {
+            if (candidate == null || !candidate.Contains(x, y))
+            {
+                return current;
+            }
+            if (current == null)
+            {
+                return candidate;
+            }
+            float currentArea = current.bounds.width * current.bounds.height;
+            float candidateArea = candidate.bounds.width * candidate.bounds.height;
+            return candidateArea < currentArea ? candidate : current;
+        }
     }
 }

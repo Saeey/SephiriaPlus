@@ -7,7 +7,7 @@
 - 奖励和铁匠等消耗刷新骰子的界面可以持续刷新。
 - 神器选择界面提供“无 + 全部流派”筛选框；选择流派后再点刷新，候选神器只从该流派中生成。
 - 未打破的隐藏房入口墙会显示闪烁的“隐藏房间”标记。
-- 右上角显示同层玩家的当前地点伤害、DPS 和伤害占比，按 `F7` 可显示/隐藏。
+- 右上角显示当前战斗房间内玩家的伤害、DPS 和伤害占比，按 `F7` 可显示/隐藏；进入新战斗房间时自动重置，战斗结束后冻结结果。
 - 所有玩家从命运刻印获得的天赋点调整为原版的 10 倍，基础点数保持原版数值。
 - 所有玩家的主背包增加 18 格，即增加 3 整行。
 - 每次进入新关卡自动保存入口检查点；失败结算时由房主点击“重试”按钮（或按 `F8`）恢复原装备、背包、等级和资源并无限重试。
@@ -67,9 +67,11 @@ Sephiria\AddOns\SephiriaPlus\config.json
 日志应包含：
 
 ```text
-[AddOnLoader] 'SephiriaPlus' v1.6.0
+[AddOnLoader] 'SephiriaPlus' v1.6.1
 [SephiriaPlus] loaded with config: reroll=True (target 99), talent=True (x10), inventory=True (+18), checkpointRetry=True (F8), artifactFilter=True, hiddenRooms=True, dpsMeter=True (F7)
 ```
+
+DPS 统计的房间边界识别和战斗生命周期设计调研参考了 [G-Yoka/SephiriaDpsMeter](https://github.com/G-Yoka/SephiriaDpsMeter)的公开文档与源码。SephiriaPlus 使用游戏原生 AddOn API 独立实现，不包含该项目的代码、资产或 BepInEx/Harmony 依赖。
 
 ## 卸载
 
