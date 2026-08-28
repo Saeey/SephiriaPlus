@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.0.0")]
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.1.0")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
@@ -33,11 +33,7 @@ namespace SephiriaPlus
 
         private void OnDestroy()
         {
-            if (harmony != null)
-            {
-                harmony.UnpatchSelf();
-                harmony = null;
-            }
+            harmony?.UnpatchSelf();
             Debug.Log(LogPrefix + " unloaded.");
         }
     }
@@ -56,8 +52,6 @@ namespace SephiriaPlus
         public string CheckpointRetryKey = "F8";
         public bool EnableArtifactSchoolFilter = true;
         public bool EnableHiddenRoomReveal = true;
-        public bool EnableDpsMeter = true;
-        public string DpsMeterToggleKey = "F7";
 
         public static ModConfig Load()
         {
@@ -97,8 +91,7 @@ namespace SephiriaPlus
                    ", inventory=" + EnableExtraInventorySlots + " (+" + ExtraInventorySlots + ")" +
                    ", checkpointRetry=" + EnableCheckpointRetry + " (" + CheckpointRetryKey + ")" +
                    ", artifactFilter=" + EnableArtifactSchoolFilter +
-                   ", hiddenRooms=" + EnableHiddenRoomReveal +
-                   ", dpsMeter=" + EnableDpsMeter + " (" + DpsMeterToggleKey + ")";
+                   ", hiddenRooms=" + EnableHiddenRoomReveal;
         }
     }
 
@@ -113,9 +106,6 @@ namespace SephiriaPlus
             BindingFlags.Static | BindingFlags.NonPublic);
         private static readonly FieldInfo CurrentRunSaveField = typeof(SaveManager).GetField(
             "currentRun",
-            BindingFlags.Static | BindingFlags.NonPublic);
-        private static readonly FieldInfo MiraclePoolsField = typeof(MiracleDatabase).GetField(
-            "miracles",
             BindingFlags.Static | BindingFlags.NonPublic);
         private readonly Dictionary<int, TalentPointState> talentPointStates = new Dictionary<int, TalentPointState>();
         private readonly HashSet<int> expandedInventories = new HashSet<int>();
@@ -137,19 +127,12 @@ namespace SephiriaPlus
         private readonly List<GameObject> artifactFilterButtons = new List<GameObject>();
         private List<Miracle> originalTierOneMiracles;
         private string selectedArtifactCategory = string.Empty;
-        private Key dpsMeterToggleKey = Key.F7;
-        private bool dpsMeterVisible = true;
-        private DpsRoomScope currentDpsRoom;
-        private bool dpsRoomActive;
-        private bool previousBattleState;
-        private int dpsRoomSequence;
-        private float dpsCombatStartTime = -1f;
-        private float dpsCombatEndTime = -1f;
-        private readonly Dictionary<uint, DpsPlayerRow> dpsRows = new Dictionary<uint, DpsPlayerRow>();
-        private GUIStyle overlayTitleStyle;
-        private GUIStyle overlayRowStyle;
+        private UI_MiraclePanel lastMiraclePanel;
+        private MiracleController lastMiracleController;
+        private MiracleSelector2 lastMiracleSelector;
+        private MiracleMetadata[] lastServerChoices;
+        private bool rebuildingFilteredChoices;
         private GUIStyle hiddenRoomStyle;
-        private Texture2D overlayBackground;
         private float nextPollTime;
 
         internal static SephiriaPlusController Instance { get; private set; }
@@ -167,11 +150,6 @@ namespace SephiriaPlus
                 checkpointRetryKey = Key.F8;
                 Debug.LogWarning("[SephiriaPlus] invalid CheckpointRetryKey; using F8.");
             }
-            if (!System.Enum.TryParse(config.DpsMeterToggleKey, true, out dpsMeterToggleKey))
-            {
-                dpsMeterToggleKey = Key.F7;
-                Debug.LogWarning("[SephiriaPlus] invalid DpsMeterToggleKey; using F7.");
-            }
         }
 
         private sealed class TalentPointState
@@ -184,7 +162,6 @@ namespace SephiriaPlus
         {
             HandleCheckpointRetryInput();
             HandleArtifactFilterUI();
-            HandleDpsMeterInput();
 
             if (Time.unscaledTime < nextPollTime)
             {
@@ -277,9 +254,9 @@ namespace SephiriaPlus
             }
 
             UpdateCheckpoint(hostPlayer);
-            UpdateDpsTimer(hostPlayer, players);
         }
 
+        #if false // Retired: DPS is provided by the standalone SephiriaDpsMeter plugin.
         private void HandleDpsMeterInput()
         {
             if (config.EnableDpsMeter && Keyboard.current != null &&
@@ -482,6 +459,8 @@ namespace SephiriaPlus
             return selected;
         }
 
+        #endif
+
         private void OnGUI()
         {
             if (!NetworkServer.active)
@@ -494,39 +473,10 @@ namespace SephiriaPlus
             {
                 DrawHiddenRoomMarkers();
             }
-            if (config.EnableDpsMeter && dpsMeterVisible)
-            {
-                DrawDpsMeter();
-            }
         }
 
         private void EnsureOverlayStyles()
         {
-            if (overlayBackground == null)
-            {
-                overlayBackground = new Texture2D(1, 1);
-                overlayBackground.SetPixel(0, 0, new Color(0.055f, 0.045f, 0.075f, 0.88f));
-                overlayBackground.Apply();
-            }
-            if (overlayTitleStyle == null)
-            {
-                overlayTitleStyle = new GUIStyle(GUI.skin.label)
-                {
-                    fontSize = 20,
-                    fontStyle = FontStyle.Bold,
-                    alignment = TextAnchor.MiddleLeft,
-                    normal = { textColor = new Color(1f, 0.82f, 0.45f) }
-                };
-            }
-            if (overlayRowStyle == null)
-            {
-                overlayRowStyle = new GUIStyle(GUI.skin.label)
-                {
-                    fontSize = 17,
-                    alignment = TextAnchor.MiddleLeft,
-                    normal = { textColor = Color.white }
-                };
-            }
             if (hiddenRoomStyle == null)
             {
                 hiddenRoomStyle = new GUIStyle(GUI.skin.label)
@@ -570,6 +520,7 @@ namespace SephiriaPlus
             }
         }
 
+        #if false // Retired: DPS is provided by the standalone SephiriaDpsMeter plugin.
         private void DrawDpsMeter()
         {
             DpsPlayerRow[] rows = dpsRows.Values.OrderByDescending(row => row.Damage).ToArray();
@@ -605,9 +556,11 @@ namespace SephiriaPlus
             }
         }
 
+        #endif
+
         private void HandleArtifactFilterUI()
         {
-            if (!config.EnableArtifactSchoolFilter || !NetworkServer.active || UIManager.Instance == null)
+            if (!config.EnableArtifactSchoolFilter || UIManager.Instance == null)
             {
                 return;
             }
@@ -758,48 +711,91 @@ namespace SephiriaPlus
         private void SelectArtifactCategory(string category)
         {
             selectedArtifactCategory = category ?? string.Empty;
-            ApplyArtifactCategoryFilter();
             RefreshArtifactFilterButtonLabels();
+            RebuildCurrentArtifactChoices();
             Debug.Log("[SephiriaPlus] artifact school filter selected: " +
                       (string.IsNullOrEmpty(selectedArtifactCategory) ? "None" : selectedArtifactCategory) + ".");
         }
 
         private void EnsureOriginalMiraclePool()
         {
-            if (originalTierOneMiracles != null || MiraclePoolsField == null)
+            if (originalTierOneMiracles != null)
             {
                 return;
             }
 
-            Dictionary<Miracle.ETier, List<Miracle>> pools =
-                MiraclePoolsField.GetValue(null) as Dictionary<Miracle.ETier, List<Miracle>>;
-            if (pools != null && pools.TryGetValue(Miracle.ETier.Tier1, out List<Miracle> tierOne))
+            List<Miracle> tierOne = MiracleDatabase.FindMireclesByTier(Miracle.ETier.Tier1);
+            if (tierOne != null)
             {
                 originalTierOneMiracles = new List<Miracle>(tierOne);
             }
         }
 
-        private void ApplyArtifactCategoryFilter()
+        internal MiracleMetadata[] FilterLocalArtifactChoices(
+            UI_MiraclePanel panel,
+            MiracleController miracleController,
+            MiracleMetadata[] serverChoices,
+            MiracleSelector2 miracleSelector)
+        {
+            if (rebuildingFilteredChoices || !config.EnableArtifactSchoolFilter || serverChoices == null)
+            {
+                return serverChoices;
+            }
+
+            lastMiraclePanel = panel;
+            lastMiracleController = miracleController;
+            lastMiracleSelector = miracleSelector;
+            lastServerChoices = serverChoices.ToArray();
+            return CreateFilteredArtifactChoices(serverChoices);
+        }
+
+        private MiracleMetadata[] CreateFilteredArtifactChoices(MiracleMetadata[] source)
         {
             EnsureOriginalMiraclePool();
-            Dictionary<Miracle.ETier, List<Miracle>> pools = MiraclePoolsField != null
-                ? MiraclePoolsField.GetValue(null) as Dictionary<Miracle.ETier, List<Miracle>>
-                : null;
-            if (pools == null || originalTierOneMiracles == null)
+            if (source == null || string.IsNullOrEmpty(selectedArtifactCategory) || originalTierOneMiracles == null)
+            {
+                return source;
+            }
+
+            List<Miracle> candidates = originalTierOneMiracles.Where(miracle => miracle != null &&
+                miracle.categories != null && miracle.categories.Contains(selectedArtifactCategory)).ToList();
+            if (candidates.Count == 0)
+            {
+                return source;
+            }
+
+            System.Random random = new System.Random(System.Environment.TickCount ^ selectedArtifactCategory.GetHashCode());
+            candidates = candidates.OrderBy(_ => random.Next()).ToList();
+            MiracleMetadata[] filtered = new MiracleMetadata[source.Length];
+            for (int index = 0; index < source.Length; index++)
+            {
+                filtered[index] = new MiracleMetadata
+                {
+                    id = candidates[index % candidates.Count].id,
+                    instanceID = source[index].instanceID
+                };
+            }
+            return filtered;
+        }
+
+        private void RebuildCurrentArtifactChoices()
+        {
+            if (lastMiraclePanel == null || lastMiracleController == null || lastMiracleSelector == null ||
+                lastServerChoices == null || !lastMiraclePanel.IsOpened)
             {
                 return;
             }
 
-            List<Miracle> filtered = string.IsNullOrEmpty(selectedArtifactCategory)
-                ? new List<Miracle>(originalTierOneMiracles)
-                : originalTierOneMiracles.Where(miracle => miracle != null && miracle.categories != null &&
-                    miracle.categories.Contains(selectedArtifactCategory)).ToList();
-            if (filtered.Count == 0)
+            rebuildingFilteredChoices = true;
+            try
             {
-                Debug.LogWarning("[SephiriaPlus] selected artifact school has no available miracles; using the normal pool.");
-                filtered = new List<Miracle>(originalTierOneMiracles);
+                lastMiraclePanel.SetController(lastMiracleController,
+                    CreateFilteredArtifactChoices(lastServerChoices), lastMiracleSelector);
             }
-            pools[Miracle.ETier.Tier1] = filtered;
+            finally
+            {
+                rebuildingFilteredChoices = false;
+            }
         }
 
         private void RefreshArtifactFilterButtonLabels()
@@ -1061,15 +1057,6 @@ namespace SephiriaPlus
                 Object.Destroy(artifactFilterContainer);
             }
 
-            if (originalTierOneMiracles != null && MiraclePoolsField != null)
-            {
-                Dictionary<Miracle.ETier, List<Miracle>> pools =
-                    MiraclePoolsField.GetValue(null) as Dictionary<Miracle.ETier, List<Miracle>>;
-                if (pools != null)
-                {
-                    pools[Miracle.ETier.Tier1] = new List<Miracle>(originalTierOneMiracles);
-                }
-            }
 
             if (!NetworkServer.active)
             {
@@ -1095,6 +1082,7 @@ namespace SephiriaPlus
         public TextMeshProUGUI[] Labels;
     }
 
+    #if false // Retired: DPS is provided by the standalone SephiriaDpsMeter plugin.
     internal sealed class DpsPlayerRow
     {
         public string Name = string.Empty;
@@ -1173,6 +1161,26 @@ namespace SephiriaPlus
         private static void BeforeDamageFeedback(UnitAvatar __instance, DamageFeedback[] __0)
         {
             SephiriaPlusController.Instance?.RecordDamageFeedback(__instance, __0);
+        }
+    }
+    #endif
+
+    [HarmonyPatch(typeof(UI_MiraclePanel), nameof(UI_MiraclePanel.SetController))]
+    internal static class LocalArtifactChoicePatch
+    {
+        [HarmonyPrefix]
+        private static void FilterChoices(
+            UI_MiraclePanel __instance,
+            MiracleController miracleController,
+            ref MiracleMetadata[] miracles,
+            MiracleSelector2 miracleSelector)
+        {
+            SephiriaPlusController controller = SephiriaPlusController.Instance;
+            if (controller != null)
+            {
+                miracles = controller.FilterLocalArtifactChoices(
+                    __instance, miracleController, miracles, miracleSelector);
+            }
         }
     }
 }

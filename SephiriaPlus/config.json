@@ -8,7 +8,5 @@
   "EnableCheckpointRetry": true,
   "CheckpointRetryKey": "F8",
   "EnableArtifactSchoolFilter": true,
-  "EnableHiddenRoomReveal": true,
-  "EnableDpsMeter": true,
-  "DpsMeterToggleKey": "F7"
+  "EnableHiddenRoomReveal": true
 }

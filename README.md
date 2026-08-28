@@ -1,21 +1,18 @@
 # SephiriaPlus
 
 作者：null
-当前版本：2.0.0（BepInEx 版）
+当前版本：2.1.0（BepInEx 版）
 
-SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.0.0 已从游戏 AddOn 迁移到 BepInEx 5，并使用 HarmonyX 对游戏逻辑进行补丁。
+SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.x 已从游戏 AddOn 迁移到 BepInEx 5，并使用 HarmonyX 对游戏逻辑进行补丁。
 
 ## 功能
 
 - 无限刷新：刷新次数自动补充至 99。
-- 神器流派筛选：刷新界面可按流派限定候选神器。
+- 神器流派筛选：刷新界面可按流派限定本机候选神器；每位玩家自行安装、互不影响。
 - 天赋点数 ×10。
 - 背包格子 +18。
 - 失败重试：失败结算界面增加“重试”按钮，也可按 F8。
 - 隐藏房间提示：在小地图上显示隐藏房间标记。
-- DPS 统计：按 F7 显示或隐藏当前房间伤害面板。
-
-DPS 统计基于游戏实际伤害反馈事件记录伤害，不再通过生命值轮询估算；进入新战斗房间后会开始新的统计周期。面板为本机显示，不会同步给联机队友。
 
 ## 安装
 
@@ -46,9 +43,7 @@ DPS 统计基于游戏实际伤害反馈事件记录伤害，不再通过生命�
   "EnableCheckpointRetry": true,
   "CheckpointRetryKey": "F8",
   "EnableArtifactSchoolFilter": true,
-  "EnableHiddenRoomReveal": true,
-  "EnableDpsMeter": true,
-  "DpsMeterToggleKey": "F7"
+  "EnableHiddenRoomReveal": true
 }
 ```
 
@@ -65,5 +60,6 @@ dotnet build .\SephiriaPlus\SephiriaPlus.csproj -c Release `
 ## 说明
 
 - 本 Mod 为非官方作品，游戏更新后可能需要适配。
-- 联机时建议所有玩家使用相同版本与配置。由房主控制的游戏逻辑通常只需房主安装；本地 UI（例如 DPS 面板）只会显示在安装者客户端。
-- DPS 功能研究过 Sephiria DPS Meter 的公开实现思路，但本项目为独立实现，没有复制其代码或资源。
+- 联机时建议所有玩家使用相同版本与配置。由房主控制的游戏逻辑通常只需房主安装。
+- 神器筛选是客户端本地功能：只改变安装者自己的神器选择面板，不修改房主全局神器池，也不会替队友筛选。
+- DPS 统计已从 SephiriaPlus 移除；需要伤害统计时可单独安装 Sephiria DPS Meter。
