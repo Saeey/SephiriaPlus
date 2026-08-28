@@ -117,6 +117,7 @@ namespace SephiriaPlus
         private Key checkpointRetryKey = Key.F8;
         private bool retryInProgress;
         private UI_GameOverLabel retryButtonOwner;
+        private GameObject retryButtonObject;
         private UI_HorayButton retryButton;
         private bool retryButtonLayoutApplied;
         private float nextPollTime;
@@ -336,6 +337,7 @@ namespace SephiriaPlus
                 }
 
                 retryButtonOwner = gameOver;
+                retryButtonObject = retryObject;
                 retryButtonLayoutApplied = false;
                 retryObject.SetActive(false);
                 Debug.Log("[SephiriaPlus] retry button added to the game-over screen.");
@@ -348,7 +350,7 @@ namespace SephiriaPlus
             }
             bool canRetry = buttonsVisible && NetworkServer.active &&
                             checkpointCurrent != null && checkpointRun != null && !retryInProgress;
-            retryButton.gameObject.SetActive(buttonsVisible);
+            retryButtonObject.SetActive(buttonsVisible);
             retryButton.interactable = canRetry;
             if (retryButton.text != null)
             {
@@ -364,8 +366,8 @@ namespace SephiriaPlus
             RectTransform returnRect = gameOver.button != null
                 ? gameOver.button.GetComponent<RectTransform>()
                 : null;
-            RectTransform retryRect = retryButton != null
-                ? retryButton.GetComponent<RectTransform>()
+            RectTransform retryRect = retryButtonObject != null
+                ? retryButtonObject.GetComponent<RectTransform>()
                 : null;
             if (destinyRect == null || returnRect == null || retryRect == null ||
                 destinyRect.parent != returnRect.parent || destinyRect.parent != retryRect.parent)
