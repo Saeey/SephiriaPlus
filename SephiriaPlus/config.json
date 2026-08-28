@@ -8,5 +8,7 @@
   "EnableCheckpointRetry": true,
   "CheckpointRetryKey": "F8",
   "EnableArtifactSchoolFilter": true,
-  "EnableHiddenRoomReveal": true
+  "EnableHiddenRoomReveal": true,
+  "EnableExtraWishPoolCapacity": true,
+  "ExtraWishPoolCapacity": 50
 }

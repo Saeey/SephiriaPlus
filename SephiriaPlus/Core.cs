@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.1.4")]
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.2.0")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
@@ -52,6 +52,8 @@ namespace SephiriaPlus
         public string CheckpointRetryKey = "F8";
         public bool EnableArtifactSchoolFilter = true;
         public bool EnableHiddenRoomReveal = true;
+        public bool EnableExtraWishPoolCapacity = true;
+        public int ExtraWishPoolCapacity = 50;
 
         public static ModConfig Load()
         {
@@ -75,6 +77,7 @@ namespace SephiriaPlus
                 config.RerollDiceTarget = Mathf.Clamp(config.RerollDiceTarget, 0, 9999);
                 config.TalentPointMultiplier = Mathf.Clamp(config.TalentPointMultiplier, 1, 100);
                 config.ExtraInventorySlots = Mathf.Clamp(config.ExtraInventorySlots, 0, short.MaxValue);
+                config.ExtraWishPoolCapacity = Mathf.Clamp(config.ExtraWishPoolCapacity, 0, 9999);
                 return config;
             }
             catch (System.Exception exception)
@@ -91,7 +94,8 @@ namespace SephiriaPlus
                    ", inventory=" + EnableExtraInventorySlots + " (+" + ExtraInventorySlots + ")" +
                    ", checkpointRetry=" + EnableCheckpointRetry + " (" + CheckpointRetryKey + ")" +
                    ", artifactFilter=" + EnableArtifactSchoolFilter +
-                   ", hiddenRooms=" + EnableHiddenRoomReveal;
+                   ", hiddenRooms=" + EnableHiddenRoomReveal +
+                   ", wishPool=" + EnableExtraWishPoolCapacity + " (+" + ExtraWishPoolCapacity + ")";
         }
     }
 
@@ -111,6 +115,8 @@ namespace SephiriaPlus
         private readonly Dictionary<int, TalentPointState> talentPointStates = new Dictionary<int, TalentPointState>();
         private readonly Dictionary<int, InventoryExpansionState> inventoryExpansionStates =
             new Dictionary<int, InventoryExpansionState>();
+        private readonly Dictionary<int, WishPoolCapacityState> wishPoolCapacityStates =
+            new Dictionary<int, WishPoolCapacityState>();
         private ModConfig config = new ModConfig();
         private SaveData checkpointCurrent;
         private SaveData checkpointRun;
@@ -170,6 +176,15 @@ namespace SephiriaPlus
             public short LastAppliedStorage;
         }
 
+        private sealed class WishPoolCapacityState
+        {
+            public int VanillaCapacity;
+            public int LastAppliedCapacity;
+        }
+
+        internal int ExtraWishPoolCapacity =>
+            config.EnableExtraWishPoolCapacity ? config.ExtraWishPoolCapacity : 0;
+
         private void Update()
         {
             HandleCheckpointRetryInput();
@@ -210,6 +225,7 @@ namespace SephiriaPlus
 
                 GridInventory inventory = player.Inventory;
                 MaintainExtraInventorySlots(inventory);
+                MaintainExtraWishPoolCapacity(inventory);
 
                 if (!config.EnableTalentPointMultiplier)
                 {
@@ -341,6 +357,46 @@ namespace SephiriaPlus
                 state.VanillaStorage += (short)(currentStorage - state.LastAppliedStorage);
                 state.LastAppliedStorage = currentStorage;
             }
+        }
+
+        private void MaintainExtraWishPoolCapacity(GridInventory inventory)
+        {
+            if (inventory == null)
+            {
+                return;
+            }
+
+            int instanceId = inventory.GetInstanceID();
+            if (!config.EnableExtraWishPoolCapacity || config.ExtraWishPoolCapacity <= 0)
+            {
+                if (wishPoolCapacityStates.TryGetValue(instanceId, out WishPoolCapacityState disabledState) &&
+                    inventory.dimensionPocket == disabledState.LastAppliedCapacity)
+                {
+                    inventory.NetworkdimensionPocket = disabledState.VanillaCapacity;
+                }
+                wishPoolCapacityStates.Remove(instanceId);
+                return;
+            }
+
+            int currentCapacity = inventory.dimensionPocket;
+            if (!wishPoolCapacityStates.TryGetValue(instanceId, out WishPoolCapacityState state))
+            {
+                state = new WishPoolCapacityState { VanillaCapacity = currentCapacity };
+                wishPoolCapacityStates.Add(instanceId, state);
+            }
+            else if (currentCapacity != state.LastAppliedCapacity)
+            {
+                // Talents and preset changes can rebuild this stat. Treat the newly
+                // observed value as vanilla, then reapply only one copy of our bonus.
+                state.VanillaCapacity = currentCapacity;
+            }
+
+            int targetCapacity = Mathf.Min(9999, state.VanillaCapacity + config.ExtraWishPoolCapacity);
+            if (currentCapacity != targetCapacity)
+            {
+                inventory.NetworkdimensionPocket = targetCapacity;
+            }
+            state.LastAppliedCapacity = targetCapacity;
         }
 
         #if false // Retired: DPS is provided by the standalone SephiriaDpsMeter plugin.
@@ -1174,6 +1230,14 @@ namespace SephiriaPlus
                 {
                     player.NetworkmaxPassivePoint -= state.VanillaAddedPoints * (config.TalentPointMultiplier - 1);
                 }
+
+                GridInventory inventory = player != null ? player.Inventory : null;
+                if (inventory != null &&
+                    wishPoolCapacityStates.TryGetValue(inventory.GetInstanceID(), out WishPoolCapacityState wishState) &&
+                    inventory.dimensionPocket == wishState.LastAppliedCapacity)
+                {
+                    inventory.NetworkdimensionPocket = wishState.VanillaCapacity;
+                }
             }
         }
     }
@@ -1183,6 +1247,23 @@ namespace SephiriaPlus
         public string Category;
         public string DisplayName;
         public TextMeshProUGUI[] Labels;
+    }
+
+    [HarmonyPatch(typeof(KeywordDatabase), nameof(KeywordDatabase.GetConstValue))]
+    internal static class WishPoolGlobalLimitPatch
+    {
+        [HarmonyPostfix]
+        private static void IncreaseDimensionPocketLimit(string key, ref int __result)
+        {
+            if (string.Equals(key, "DIMENSIONPOCKETLIMIT", System.StringComparison.OrdinalIgnoreCase))
+            {
+                SephiriaPlusController controller = SephiriaPlusController.Instance;
+                if (controller != null)
+                {
+                    __result = Mathf.Min(9999, __result + controller.ExtraWishPoolCapacity);
+                }
+            }
+        }
     }
 
     #if false // Retired: DPS is provided by the standalone SephiriaDpsMeter plugin.

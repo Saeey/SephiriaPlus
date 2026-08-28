@@ -1,7 +1,7 @@
 # SephiriaPlus
 
 作者：null
-当前版本：2.1.4（BepInEx 版）
+当前版本：2.2.0（BepInEx 版）
 
 SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.x 已从游戏 AddOn 迁移到 BepInEx 5，并使用 HarmonyX 对游戏逻辑进行补丁。
 
@@ -13,6 +13,7 @@ SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.x 已
 - 背包格子 +18。
 - 失败重试：失败结算界面增加“重试”按钮，也可按 F8。
 - 隐藏房间提示：在小地图上显示隐藏房间标记。
+- 许愿池容量 +50：同步扩展许愿泉选择上限与开局神器发放上限。
 
 ## 安装
 
@@ -43,7 +44,9 @@ SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.x 已
   "EnableCheckpointRetry": true,
   "CheckpointRetryKey": "F8",
   "EnableArtifactSchoolFilter": true,
-  "EnableHiddenRoomReveal": true
+  "EnableHiddenRoomReveal": true,
+  "EnableExtraWishPoolCapacity": true,
+  "ExtraWishPoolCapacity": 50
 }
 ```
 
