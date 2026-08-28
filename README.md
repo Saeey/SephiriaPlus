@@ -1,7 +1,7 @@
 # SephiriaPlus
 
 作者：null
-当前版本：2.1.1（BepInEx 版）
+当前版本：2.1.2（BepInEx 版）
 
 SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.x 已从游戏 AddOn 迁移到 BepInEx 5，并使用 HarmonyX 对游戏逻辑进行补丁。
 

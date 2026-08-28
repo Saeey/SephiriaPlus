@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.1.1")]
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.1.2")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
@@ -108,7 +108,8 @@ namespace SephiriaPlus
             "currentRun",
             BindingFlags.Static | BindingFlags.NonPublic);
         private readonly Dictionary<int, TalentPointState> talentPointStates = new Dictionary<int, TalentPointState>();
-        private readonly HashSet<int> expandedInventories = new HashSet<int>();
+        private readonly Dictionary<int, InventoryExpansionState> inventoryExpansionStates =
+            new Dictionary<int, InventoryExpansionState>();
         private ModConfig config = new ModConfig();
         private SaveData checkpointCurrent;
         private SaveData checkpointRun;
@@ -158,6 +159,12 @@ namespace SephiriaPlus
             public int LastAppliedCap;
         }
 
+        private sealed class InventoryExpansionState
+        {
+            public short VanillaStorage;
+            public short LastAppliedStorage;
+        }
+
         private void Update()
         {
             HandleCheckpointRetryInput();
@@ -198,13 +205,7 @@ namespace SephiriaPlus
                 }
 
                 GridInventory inventory = player.Inventory;
-                int inventoryInstanceId = inventory != null ? inventory.GetInstanceID() : 0;
-                if (config.EnableExtraInventorySlots && config.ExtraInventorySlots > 0 &&
-                    inventory != null && inventory.isServer && !expandedInventories.Contains(inventoryInstanceId))
-                {
-                    inventory.AddStorage((short)config.ExtraInventorySlots);
-                    expandedInventories.Add(inventoryInstanceId);
-                }
+                MaintainExtraInventorySlots(inventory);
 
                 if (!config.EnableTalentPointMultiplier)
                 {
@@ -254,6 +255,54 @@ namespace SephiriaPlus
             }
 
             UpdateCheckpoint(hostPlayer);
+        }
+
+        private void MaintainExtraInventorySlots(GridInventory inventory)
+        {
+            if (!config.EnableExtraInventorySlots || config.ExtraInventorySlots <= 0 ||
+                inventory == null || !inventory.isServer)
+            {
+                return;
+            }
+
+            int instanceId = inventory.GetInstanceID();
+            short currentStorage = inventory.CurrentInventoryStorage;
+            if (!inventoryExpansionStates.TryGetValue(instanceId, out InventoryExpansionState state))
+            {
+                short add = (short)Mathf.Min(config.ExtraInventorySlots, short.MaxValue - currentStorage);
+                state = new InventoryExpansionState
+                {
+                    VanillaStorage = currentStorage,
+                    LastAppliedStorage = (short)(currentStorage + add)
+                };
+                inventoryExpansionStates.Add(instanceId, state);
+                if (add > 0)
+                {
+                    inventory.AddStorage(add);
+                }
+                return;
+            }
+
+            if (currentStorage < state.LastAppliedStorage)
+            {
+                // The game recalculated this same inventory (for example after a
+                // talent/passive update). Treat the new value as vanilla and restore
+                // exactly one configured bonus instead of stacking another +18.
+                state.VanillaStorage = currentStorage;
+                short add = (short)Mathf.Min(config.ExtraInventorySlots, short.MaxValue - currentStorage);
+                state.LastAppliedStorage = (short)(currentStorage + add);
+                if (add > 0)
+                {
+                    inventory.AddStorage(add);
+                }
+            }
+            else if (currentStorage > state.LastAppliedStorage)
+            {
+                // A legitimate vanilla capacity increase was applied on top of our
+                // bonus; keep it and advance the tracked baseline.
+                state.VanillaStorage += (short)(currentStorage - state.LastAppliedStorage);
+                state.LastAppliedStorage = currentStorage;
+            }
         }
 
         #if false // Retired: DPS is provided by the standalone SephiriaDpsMeter plugin.
