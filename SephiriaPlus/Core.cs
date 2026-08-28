@@ -55,6 +55,9 @@ namespace SephiriaPlus
         public bool EnableCheckpointRetry = true;
         public string CheckpointRetryKey = "F8";
         public bool EnableArtifactSchoolFilter = true;
+        public bool EnableHiddenRoomReveal = true;
+        public bool EnableDpsMeter = true;
+        public string DpsMeterToggleKey = "F7";
 
         public static ModConfig Load()
         {
@@ -93,7 +96,9 @@ namespace SephiriaPlus
                    ", talent=" + EnableTalentPointMultiplier + " (x" + TalentPointMultiplier + ")" +
                    ", inventory=" + EnableExtraInventorySlots + " (+" + ExtraInventorySlots + ")" +
                    ", checkpointRetry=" + EnableCheckpointRetry + " (" + CheckpointRetryKey + ")" +
-                   ", artifactFilter=" + EnableArtifactSchoolFilter;
+                   ", artifactFilter=" + EnableArtifactSchoolFilter +
+                   ", hiddenRooms=" + EnableHiddenRoomReveal +
+                   ", dpsMeter=" + EnableDpsMeter + " (" + DpsMeterToggleKey + ")";
         }
     }
 
@@ -132,6 +137,16 @@ namespace SephiriaPlus
         private readonly List<GameObject> artifactFilterButtons = new List<GameObject>();
         private List<Miracle> originalTierOneMiracles;
         private string selectedArtifactCategory = string.Empty;
+        private Key dpsMeterToggleKey = Key.F7;
+        private bool dpsMeterVisible = true;
+        private string dpsFloorGuid = string.Empty;
+        private float dpsCombatStartTime = -1f;
+        private float dpsCombatEndTime = -1f;
+        private float previousTeamDamage;
+        private GUIStyle overlayTitleStyle;
+        private GUIStyle overlayRowStyle;
+        private GUIStyle hiddenRoomStyle;
+        private Texture2D overlayBackground;
         private float nextPollTime;
 
         public void Configure(ModConfig loadedConfig)
@@ -141,6 +156,11 @@ namespace SephiriaPlus
             {
                 checkpointRetryKey = Key.F8;
                 Debug.LogWarning("[SephiriaPlus] invalid CheckpointRetryKey; using F8.");
+            }
+            if (!System.Enum.TryParse(config.DpsMeterToggleKey, true, out dpsMeterToggleKey))
+            {
+                dpsMeterToggleKey = Key.F7;
+                Debug.LogWarning("[SephiriaPlus] invalid DpsMeterToggleKey; using F7.");
             }
         }
 
@@ -154,6 +174,7 @@ namespace SephiriaPlus
         {
             HandleCheckpointRetryInput();
             HandleArtifactFilterUI();
+            HandleDpsMeterInput();
 
             if (Time.unscaledTime < nextPollTime)
             {
@@ -246,6 +267,181 @@ namespace SephiriaPlus
             }
 
             UpdateCheckpoint(hostPlayer);
+            UpdateDpsTimer(hostPlayer, players);
+        }
+
+        private void HandleDpsMeterInput()
+        {
+            if (config.EnableDpsMeter && Keyboard.current != null &&
+                Keyboard.current[dpsMeterToggleKey].wasPressedThisFrame)
+            {
+                dpsMeterVisible = !dpsMeterVisible;
+            }
+        }
+
+        private void UpdateDpsTimer(PlayerAvatar hostPlayer, PlayerAvatar[] players)
+        {
+            if (!config.EnableDpsMeter || hostPlayer == null)
+            {
+                return;
+            }
+
+            if (dpsFloorGuid != hostPlayer.currentFloorGuid)
+            {
+                dpsFloorGuid = hostPlayer.currentFloorGuid;
+                dpsCombatStartTime = -1f;
+                dpsCombatEndTime = -1f;
+                previousTeamDamage = 0f;
+            }
+
+            float teamDamage = 0f;
+            bool anyoneInBattle = false;
+            foreach (PlayerAvatar player in players)
+            {
+                if (player == null || player.currentFloorGuid != dpsFloorGuid)
+                {
+                    continue;
+                }
+                teamDamage += player.dealsStatistics_LastLocation.Values.Sum();
+                anyoneInBattle |= player.IsInBattle;
+            }
+
+            if (teamDamage > 0f && dpsCombatStartTime < 0f)
+            {
+                dpsCombatStartTime = Time.unscaledTime;
+                dpsCombatEndTime = dpsCombatStartTime;
+            }
+            if (teamDamage > previousTeamDamage || anyoneInBattle)
+            {
+                dpsCombatEndTime = Time.unscaledTime;
+            }
+            previousTeamDamage = teamDamage;
+        }
+
+        private void OnGUI()
+        {
+            if (!NetworkServer.active)
+            {
+                return;
+            }
+
+            EnsureOverlayStyles();
+            if (config.EnableHiddenRoomReveal)
+            {
+                DrawHiddenRoomMarkers();
+            }
+            if (config.EnableDpsMeter && dpsMeterVisible)
+            {
+                DrawDpsMeter();
+            }
+        }
+
+        private void EnsureOverlayStyles()
+        {
+            if (overlayBackground == null)
+            {
+                overlayBackground = new Texture2D(1, 1);
+                overlayBackground.SetPixel(0, 0, new Color(0.055f, 0.045f, 0.075f, 0.88f));
+                overlayBackground.Apply();
+            }
+            if (overlayTitleStyle == null)
+            {
+                overlayTitleStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 20,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleLeft,
+                    normal = { textColor = new Color(1f, 0.82f, 0.45f) }
+                };
+            }
+            if (overlayRowStyle == null)
+            {
+                overlayRowStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 17,
+                    alignment = TextAnchor.MiddleLeft,
+                    normal = { textColor = Color.white }
+                };
+            }
+            if (hiddenRoomStyle == null)
+            {
+                hiddenRoomStyle = new GUIStyle(GUI.skin.label)
+                {
+                    fontSize = 20,
+                    fontStyle = FontStyle.Bold,
+                    alignment = TextAnchor.MiddleCenter,
+                    normal = { textColor = new Color(1f, 0.3f, 0.72f) }
+                };
+            }
+        }
+
+        private void DrawHiddenRoomMarkers()
+        {
+            Camera camera = Camera.main;
+            if (camera == null)
+            {
+                return;
+            }
+
+            HiddenRoomTriggerCollider[] entrances =
+                Object.FindObjectsByType<HiddenRoomTriggerCollider>(FindObjectsSortMode.None);
+            foreach (HiddenRoomTriggerCollider entrance in entrances)
+            {
+                if (entrance == null || !entrance.gameObject.activeInHierarchy)
+                {
+                    continue;
+                }
+                Vector3 screen = camera.WorldToScreenPoint(entrance.transform.position);
+                if (screen.z <= 0f || screen.x < 0f || screen.x > Screen.width ||
+                    screen.y < 0f || screen.y > Screen.height)
+                {
+                    continue;
+                }
+                float pulse = 0.8f + Mathf.Sin(Time.unscaledTime * 4f) * 0.2f;
+                Color oldColor = GUI.color;
+                GUI.color = new Color(1f, 1f, 1f, pulse);
+                GUI.Label(new Rect(screen.x - 90f, Screen.height - screen.y - 58f, 180f, 42f),
+                    "▼ 隐藏房间", hiddenRoomStyle);
+                GUI.color = oldColor;
+            }
+        }
+
+        private void DrawDpsMeter()
+        {
+            PlayerAvatar[] players = Object.FindObjectsByType<PlayerAvatar>(FindObjectsSortMode.None)
+                .Where(player => player != null && player.currentFloorGuid == dpsFloorGuid)
+                .OrderByDescending(player => player.dealsStatistics_LastLocation.Values.Sum())
+                .ToArray();
+            if (players.Length == 0)
+            {
+                return;
+            }
+
+            float teamDamage = players.Sum(player => player.dealsStatistics_LastLocation.Values.Sum());
+            float duration = dpsCombatStartTime < 0f
+                ? 0f
+                : Mathf.Max(0.1f, dpsCombatEndTime - dpsCombatStartTime);
+            float width = 400f;
+            float height = 72f + players.Length * 28f;
+            Rect panel = new Rect(Screen.width - width - 24f, 24f, width, height);
+            GUI.DrawTexture(panel, overlayBackground);
+            GUI.Label(new Rect(panel.x + 14f, panel.y + 8f, width - 28f, 28f),
+                "DPS统计  " + duration.ToString("0.0") + "秒  [" + dpsMeterToggleKey + "]", overlayTitleStyle);
+
+            float y = panel.y + 40f;
+            for (int i = 0; i < players.Length; i++)
+            {
+                PlayerAvatar player = players[i];
+                float damage = player.dealsStatistics_LastLocation.Values.Sum();
+                float dps = duration > 0f ? damage / duration : 0f;
+                float share = teamDamage > 0f ? damage / teamDamage * 100f : 0f;
+                string playerName = string.IsNullOrWhiteSpace(player.Name) ? player.playerNameSource : player.Name;
+                string row = (i + 1) + ". " + playerName + "   " +
+                             Mathf.FloorToInt(damage) + "  |  " + Mathf.FloorToInt(dps) + " DPS  |  " +
+                             share.ToString("0.0") + "%";
+                GUI.Label(new Rect(panel.x + 14f, y, width - 28f, 26f), row, overlayRowStyle);
+                y += 28f;
+            }
         }
 
         private void HandleArtifactFilterUI()

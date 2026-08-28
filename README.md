@@ -6,6 +6,8 @@
 
 - 奖励和铁匠等消耗刷新骰子的界面可以持续刷新。
 - 神器选择界面提供“无 + 全部流派”筛选框；选择流派后再点刷新，候选神器只从该流派中生成。
+- 未打破的隐藏房入口墙会显示闪烁的“隐藏房间”标记。
+- 右上角显示同层玩家的当前地点伤害、DPS 和伤害占比，按 `F7` 可显示/隐藏。
 - 所有玩家从命运刻印获得的天赋点调整为原版的 10 倍，基础点数保持原版数值。
 - 所有玩家的主背包增加 18 格，即增加 3 整行。
 - 每次进入新关卡自动保存入口检查点；失败结算时由房主点击“重试”按钮（或按 `F8`）恢复原装备、背包、等级和资源并无限重试。
@@ -47,11 +49,14 @@ Sephiria\AddOns\SephiriaPlus\config.json
   "ExtraInventorySlots": 18,
   "EnableCheckpointRetry": true,
   "CheckpointRetryKey": "F8",
-  "EnableArtifactSchoolFilter": true
+  "EnableArtifactSchoolFilter": true,
+  "EnableHiddenRoomReveal": true,
+  "EnableDpsMeter": true,
+  "DpsMeterToggleKey": "F7"
 }
 ```
 
-五个 `Enable...` 项可以分别关闭无限刷新、天赋倍率、背包扩容、检查点重试和神器流派筛选；数字项分别控制目标骰子数、天赋倍率和额外格数。失败结算界面中由房主点击“命运刻印”和“返回”之间的“重试”按钮恢复本关入口状态，`CheckpointRetryKey` 是备用快捷键。配置由房主启动时读取，修改后需要重启游戏。
+七个 `Enable...` 项可以分别关闭无限刷新、天赋倍率、背包扩容、检查点重试、神器流派筛选、隐藏房标记和 DPS 面板；数字项分别控制目标骰子数、天赋倍率和额外格数。失败结算界面中由房主点击“命运刻印”和“返回”之间的“重试”按钮恢复本关入口状态，`CheckpointRetryKey` 是备用快捷键，`DpsMeterToggleKey` 用于显示或隐藏 DPS 面板。配置由房主启动时读取，修改后需要重启游戏。
 
 启动游戏并进入城镇或地牢后，可以在以下日志中确认加载：
 
@@ -62,8 +67,8 @@ Sephiria\AddOns\SephiriaPlus\config.json
 日志应包含：
 
 ```text
-[AddOnLoader] 'SephiriaPlus' v1.5.0
-[SephiriaPlus] loaded with config: reroll=True (target 99), talent=True (x10), inventory=True (+18), checkpointRetry=True (F8), artifactFilter=True
+[AddOnLoader] 'SephiriaPlus' v1.6.0
+[SephiriaPlus] loaded with config: reroll=True (target 99), talent=True (x10), inventory=True (+18), checkpointRetry=True (F8), artifactFilter=True, hiddenRooms=True, dpsMeter=True (F7)
 ```
 
 ## 卸载
