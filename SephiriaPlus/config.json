@@ -6,5 +6,6 @@
   "EnableExtraInventorySlots": true,
   "ExtraInventorySlots": 18,
   "EnableCheckpointRetry": true,
-  "CheckpointRetryKey": "F8"
+  "CheckpointRetryKey": "F8",
+  "EnableArtifactSchoolFilter": true
 }

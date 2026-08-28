@@ -5,7 +5,7 @@
     <Nullable>disable</Nullable>
     <AssemblyName>SephiriaPlus</AssemblyName>
     <RootNamespace>SephiriaPlus</RootNamespace>
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +23,14 @@
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(SephiriaPath)\Sephiria_Data\Managed\UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
     <Reference Include="Unity.InputSystem">

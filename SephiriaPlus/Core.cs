@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using Mirror;
 using Newtonsoft.Json;
@@ -53,6 +54,7 @@ namespace SephiriaPlus
         public int ExtraInventorySlots = 18;
         public bool EnableCheckpointRetry = true;
         public string CheckpointRetryKey = "F8";
+        public bool EnableArtifactSchoolFilter = true;
 
         public static ModConfig Load()
         {
@@ -90,7 +92,8 @@ namespace SephiriaPlus
             return "reroll=" + EnableInfiniteReroll + " (target " + RerollDiceTarget + ")" +
                    ", talent=" + EnableTalentPointMultiplier + " (x" + TalentPointMultiplier + ")" +
                    ", inventory=" + EnableExtraInventorySlots + " (+" + ExtraInventorySlots + ")" +
-                   ", checkpointRetry=" + EnableCheckpointRetry + " (" + CheckpointRetryKey + ")";
+                   ", checkpointRetry=" + EnableCheckpointRetry + " (" + CheckpointRetryKey + ")" +
+                   ", artifactFilter=" + EnableArtifactSchoolFilter;
         }
     }
 
@@ -105,6 +108,9 @@ namespace SephiriaPlus
             BindingFlags.Static | BindingFlags.NonPublic);
         private static readonly FieldInfo CurrentRunSaveField = typeof(SaveManager).GetField(
             "currentRun",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        private static readonly FieldInfo MiraclePoolsField = typeof(MiracleDatabase).GetField(
+            "miracles",
             BindingFlags.Static | BindingFlags.NonPublic);
         private readonly Dictionary<int, TalentPointState> talentPointStates = new Dictionary<int, TalentPointState>();
         private readonly HashSet<int> expandedInventories = new HashSet<int>();
@@ -121,6 +127,11 @@ namespace SephiriaPlus
         private UI_HorayButton retryButton;
         private TextMeshProUGUI[] retryButtonLabels = new TextMeshProUGUI[0];
         private bool retryButtonLayoutApplied;
+        private UI_MiraclePanel artifactFilterOwner;
+        private GameObject artifactFilterContainer;
+        private readonly List<GameObject> artifactFilterButtons = new List<GameObject>();
+        private List<Miracle> originalTierOneMiracles;
+        private string selectedArtifactCategory = string.Empty;
         private float nextPollTime;
 
         public void Configure(ModConfig loadedConfig)
@@ -142,6 +153,7 @@ namespace SephiriaPlus
         private void Update()
         {
             HandleCheckpointRetryInput();
+            HandleArtifactFilterUI();
 
             if (Time.unscaledTime < nextPollTime)
             {
@@ -234,6 +246,229 @@ namespace SephiriaPlus
             }
 
             UpdateCheckpoint(hostPlayer);
+        }
+
+        private void HandleArtifactFilterUI()
+        {
+            if (!config.EnableArtifactSchoolFilter || !NetworkServer.active || UIManager.Instance == null)
+            {
+                return;
+            }
+
+            UI_MiraclePanel panel = UIManager.Instance.GetElement<UI_MiraclePanel>();
+            if (panel == null || !panel.IsOpened)
+            {
+                if (artifactFilterContainer != null)
+                {
+                    artifactFilterContainer.SetActive(false);
+                }
+                return;
+            }
+
+            if (artifactFilterContainer == null || artifactFilterOwner != panel)
+            {
+                CreateArtifactFilterUI(panel);
+            }
+
+            if (artifactFilterContainer != null)
+            {
+                artifactFilterContainer.SetActive(true);
+            }
+        }
+
+        private void CreateArtifactFilterUI(UI_MiraclePanel panel)
+        {
+            if (panel.rerollButton == null)
+            {
+                return;
+            }
+
+            if (artifactFilterContainer != null)
+            {
+                Object.Destroy(artifactFilterContainer);
+            }
+            artifactFilterButtons.Clear();
+
+            EnsureOriginalMiraclePool();
+            if (originalTierOneMiracles == null)
+            {
+                return;
+            }
+
+            List<string> categories = originalTierOneMiracles
+                .Where(miracle => miracle != null && miracle.categories != null)
+                .SelectMany(miracle => miracle.categories)
+                .Where(category => !string.IsNullOrWhiteSpace(category) && ItemDatabase.FindItemCategory(category) != null)
+                .Distinct()
+                .OrderBy(category => ItemDatabase.FindItemCategory(category).Name)
+                .ToList();
+
+            artifactFilterContainer = new GameObject(
+                "SephiriaPlus_ArtifactSchoolFilter",
+                typeof(RectTransform),
+                typeof(GridLayoutGroup));
+            artifactFilterContainer.transform.SetParent(panel.transform, false);
+            RectTransform containerRect = artifactFilterContainer.GetComponent<RectTransform>();
+            containerRect.anchorMin = new Vector2(0.5f, 1f);
+            containerRect.anchorMax = new Vector2(0.5f, 1f);
+            containerRect.pivot = new Vector2(0.5f, 1f);
+            containerRect.anchoredPosition = new Vector2(0f, -36f);
+            containerRect.sizeDelta = new Vector2(1500f, 116f);
+
+            GridLayoutGroup grid = artifactFilterContainer.GetComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(140f, 50f);
+            grid.spacing = new Vector2(10f, 10f);
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 10;
+            grid.childAlignment = TextAnchor.UpperCenter;
+
+            CreateArtifactFilterButton(panel.rerollButton, string.Empty, "无", null);
+            foreach (string category in categories)
+            {
+                ItemCategoryEntity entity = ItemDatabase.FindItemCategory(category);
+                CreateArtifactFilterButton(panel.rerollButton, category, entity.Name, entity.categoryIcon);
+            }
+
+            RefreshArtifactFilterButtonLabels();
+            artifactFilterOwner = panel;
+            artifactFilterContainer.transform.SetAsLastSibling();
+            Debug.Log("[SephiriaPlus] artifact school filter created with " + categories.Count + " categories.");
+        }
+
+        private void CreateArtifactFilterButton(GameObject source, string category, string displayName, Sprite iconSprite)
+        {
+            GameObject buttonObject = Object.Instantiate(source, artifactFilterContainer.transform);
+            buttonObject.name = "SephiriaPlus_ArtifactFilter_" + (string.IsNullOrEmpty(category) ? "None" : category);
+            buttonObject.SetActive(true);
+
+            UI_HorayButton button = buttonObject.GetComponent<UI_HorayButton>();
+            if (button == null)
+            {
+                button = buttonObject.GetComponentInChildren<UI_HorayButton>(true);
+            }
+            if (button == null)
+            {
+                Object.Destroy(buttonObject);
+                return;
+            }
+
+            button.onClick.RemoveAllListeners();
+            string capturedCategory = category;
+            button.onClick.AddListener(() => SelectArtifactCategory(capturedCategory));
+            foreach (MonoBehaviour behaviour in buttonObject.GetComponentsInChildren<MonoBehaviour>(true))
+            {
+                if (behaviour != button &&
+                    behaviour.GetType().Name.IndexOf("Localiz", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    behaviour.enabled = false;
+                }
+            }
+
+            TextMeshProUGUI[] labels = buttonObject.GetComponentsInChildren<TextMeshProUGUI>(true);
+            foreach (TextMeshProUGUI label in labels)
+            {
+                label.name = "SephiriaPlus_FilterLabel_" + displayName;
+                label.fontSize = Mathf.Min(label.fontSize, 24f);
+                label.enableAutoSizing = true;
+                label.fontSizeMin = 14f;
+                label.fontSizeMax = 24f;
+                label.text = displayName;
+            }
+
+            if (iconSprite != null)
+            {
+                GameObject iconObject = new GameObject("SephiriaPlus_FilterIcon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                iconObject.transform.SetParent(buttonObject.transform, false);
+                RectTransform iconRect = iconObject.GetComponent<RectTransform>();
+                iconRect.anchorMin = new Vector2(0f, 0.5f);
+                iconRect.anchorMax = new Vector2(0f, 0.5f);
+                iconRect.pivot = new Vector2(0f, 0.5f);
+                iconRect.anchoredPosition = new Vector2(8f, 0f);
+                iconRect.sizeDelta = new Vector2(26f, 26f);
+                Image icon = iconObject.GetComponent<Image>();
+                icon.sprite = iconSprite;
+                icon.preserveAspect = true;
+                icon.raycastTarget = false;
+            }
+
+            ArtifactFilterButtonMarker marker = buttonObject.AddComponent<ArtifactFilterButtonMarker>();
+            marker.Category = category;
+            marker.DisplayName = displayName;
+            marker.Labels = labels;
+            artifactFilterButtons.Add(buttonObject);
+        }
+
+        private void SelectArtifactCategory(string category)
+        {
+            selectedArtifactCategory = category ?? string.Empty;
+            ApplyArtifactCategoryFilter();
+            RefreshArtifactFilterButtonLabels();
+            Debug.Log("[SephiriaPlus] artifact school filter selected: " +
+                      (string.IsNullOrEmpty(selectedArtifactCategory) ? "None" : selectedArtifactCategory) + ".");
+        }
+
+        private void EnsureOriginalMiraclePool()
+        {
+            if (originalTierOneMiracles != null || MiraclePoolsField == null)
+            {
+                return;
+            }
+
+            Dictionary<Miracle.ETier, List<Miracle>> pools =
+                MiraclePoolsField.GetValue(null) as Dictionary<Miracle.ETier, List<Miracle>>;
+            if (pools != null && pools.TryGetValue(Miracle.ETier.Tier1, out List<Miracle> tierOne))
+            {
+                originalTierOneMiracles = new List<Miracle>(tierOne);
+            }
+        }
+
+        private void ApplyArtifactCategoryFilter()
+        {
+            EnsureOriginalMiraclePool();
+            Dictionary<Miracle.ETier, List<Miracle>> pools = MiraclePoolsField != null
+                ? MiraclePoolsField.GetValue(null) as Dictionary<Miracle.ETier, List<Miracle>>
+                : null;
+            if (pools == null || originalTierOneMiracles == null)
+            {
+                return;
+            }
+
+            List<Miracle> filtered = string.IsNullOrEmpty(selectedArtifactCategory)
+                ? new List<Miracle>(originalTierOneMiracles)
+                : originalTierOneMiracles.Where(miracle => miracle != null && miracle.categories != null &&
+                    miracle.categories.Contains(selectedArtifactCategory)).ToList();
+            if (filtered.Count == 0)
+            {
+                Debug.LogWarning("[SephiriaPlus] selected artifact school has no available miracles; using the normal pool.");
+                filtered = new List<Miracle>(originalTierOneMiracles);
+            }
+            pools[Miracle.ETier.Tier1] = filtered;
+        }
+
+        private void RefreshArtifactFilterButtonLabels()
+        {
+            foreach (GameObject buttonObject in artifactFilterButtons)
+            {
+                if (buttonObject == null)
+                {
+                    continue;
+                }
+                ArtifactFilterButtonMarker marker = buttonObject.GetComponent<ArtifactFilterButtonMarker>();
+                if (marker == null)
+                {
+                    continue;
+                }
+                string text = marker.Category == selectedArtifactCategory
+                    ? "[" + marker.DisplayName + "]"
+                    : marker.DisplayName;
+                foreach (TextMeshProUGUI label in marker.Labels)
+                {
+                    if (label != null)
+                    {
+                        label.text = text;
+                    }
+                }
+            }
         }
 
         private void UpdateCheckpoint(PlayerAvatar hostPlayer)
@@ -460,6 +695,21 @@ namespace SephiriaPlus
 
         private void OnDestroy()
         {
+            if (artifactFilterContainer != null)
+            {
+                Object.Destroy(artifactFilterContainer);
+            }
+
+            if (originalTierOneMiracles != null && MiraclePoolsField != null)
+            {
+                Dictionary<Miracle.ETier, List<Miracle>> pools =
+                    MiraclePoolsField.GetValue(null) as Dictionary<Miracle.ETier, List<Miracle>>;
+                if (pools != null)
+                {
+                    pools[Miracle.ETier.Tier1] = new List<Miracle>(originalTierOneMiracles);
+                }
+            }
+
             if (!NetworkServer.active)
             {
                 return;
@@ -475,5 +725,12 @@ namespace SephiriaPlus
                 }
             }
         }
+    }
+
+    internal sealed class ArtifactFilterButtonMarker : MonoBehaviour
+    {
+        public string Category;
+        public string DisplayName;
+        public TextMeshProUGUI[] Labels;
     }
 }
