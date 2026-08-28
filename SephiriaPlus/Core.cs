@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.1.3")]
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.1.4")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
@@ -173,7 +173,6 @@ namespace SephiriaPlus
         private void Update()
         {
             HandleCheckpointRetryInput();
-            HandleArtifactFilterUI();
 
             if (Time.unscaledTime < nextPollTime)
             {
@@ -1269,6 +1268,7 @@ namespace SephiriaPlus
     }
     #endif
 
+    #if false // UI_MiraclePanel is the miracle chooser, not the artifact refresh screen.
     [HarmonyPatch(typeof(UI_MiraclePanel), nameof(UI_MiraclePanel.SetController))]
     internal static class LocalArtifactChoicePatch
     {
@@ -1293,4 +1293,5 @@ namespace SephiriaPlus
             SephiriaPlusController.Instance?.OnLocalMiraclePanelPopulated(__instance);
         }
     }
+    #endif
 }
