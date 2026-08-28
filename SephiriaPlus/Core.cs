@@ -375,51 +375,16 @@ namespace SephiriaPlus
                 return;
             }
 
-            if (destinyRect.parent != returnRect.parent || destinyRect.parent != retryRect.parent)
-            {
-                float fallbackWidth = Mathf.Max(100f, Mathf.Min(destinyRect.rect.width, returnRect.rect.width) * 0.62f);
-                destinyRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, fallbackWidth);
-                returnRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, fallbackWidth);
-                retryRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, fallbackWidth);
-                retryRect.position = (destinyRect.position + returnRect.position) * 0.5f;
-                retryButtonLayoutApplied = true;
-                Debug.Log("[SephiriaPlus] retry button fallback layout applied between " +
-                          destinyRect.name + " and " + returnRect.name + ".");
-                return;
-            }
-
-            float leftEdge = Mathf.Min(
-                destinyRect.anchoredPosition.x - destinyRect.rect.width * destinyRect.pivot.x,
-                returnRect.anchoredPosition.x - returnRect.rect.width * returnRect.pivot.x);
-            float rightEdge = Mathf.Max(
-                destinyRect.anchoredPosition.x + destinyRect.rect.width * (1f - destinyRect.pivot.x),
-                returnRect.anchoredPosition.x + returnRect.rect.width * (1f - returnRect.pivot.x));
-            float totalWidth = rightEdge - leftEdge;
-            float gap = Mathf.Clamp(totalWidth * 0.025f, 12f, 30f);
-            float buttonWidth = (totalWidth - gap * 2f) / 3f;
-            if (buttonWidth < 100f)
-            {
-                return;
-            }
-
-            RectTransform leftRect = destinyRect.anchoredPosition.x <= returnRect.anchoredPosition.x
-                ? destinyRect
-                : returnRect;
-            RectTransform rightRect = leftRect == destinyRect ? returnRect : destinyRect;
-            SetButtonHorizontalLayout(leftRect, leftEdge, buttonWidth);
-            SetButtonHorizontalLayout(retryRect, leftEdge + buttonWidth + gap, buttonWidth);
-            SetButtonHorizontalLayout(rightRect, leftEdge + (buttonWidth + gap) * 2f, buttonWidth);
-            retryRect.anchoredPosition = new Vector2(retryRect.anchoredPosition.x, destinyRect.anchoredPosition.y);
+            float originalWidth = Mathf.Min(destinyRect.rect.width, returnRect.rect.width);
+            float buttonWidth = Mathf.Max(100f, originalWidth * 0.55f);
+            destinyRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, buttonWidth);
+            returnRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, buttonWidth);
+            retryRect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, buttonWidth);
+            retryRect.position = (destinyRect.position + returnRect.position) * 0.5f;
+            retryRect.SetAsLastSibling();
             retryButtonLayoutApplied = true;
-            Debug.Log("[SephiriaPlus] retry button layout applied between destiny and return.");
-        }
-
-        private static void SetButtonHorizontalLayout(RectTransform rect, float left, float width)
-        {
-            rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Horizontal, width);
-            Vector2 position = rect.anchoredPosition;
-            position.x = left + width * rect.pivot.x;
-            rect.anchoredPosition = position;
+            Debug.Log("[SephiriaPlus] retry button world-position layout applied at " + retryRect.position +
+                      " between " + destinyRect.position + " and " + returnRect.position + ".");
         }
 
         private void RequestCheckpointRetry()
