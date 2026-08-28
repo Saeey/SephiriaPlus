@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.1.2")]
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.1.3")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
@@ -98,6 +98,7 @@ namespace SephiriaPlus
     internal sealed class SephiriaPlusController : MonoBehaviour
     {
         private const float PollIntervalSeconds = 0.25f;
+        private const float HiddenRoomScanIntervalSeconds = 5f;
         private static readonly FieldInfo AddedPassiveField = typeof(TreeShopItemStorage).GetField(
             "addedPassive",
             BindingFlags.Instance | BindingFlags.NonPublic);
@@ -134,6 +135,10 @@ namespace SephiriaPlus
         private MiracleMetadata[] lastServerChoices;
         private bool rebuildingFilteredChoices;
         private GUIStyle hiddenRoomStyle;
+        private readonly List<HiddenRoomTriggerCollider> hiddenRoomEntrances =
+            new List<HiddenRoomTriggerCollider>();
+        private string hiddenRoomCacheFloorGuid = string.Empty;
+        private float nextHiddenRoomScanTime;
         private float nextPollTime;
 
         internal static SephiriaPlusController Instance { get; private set; }
@@ -255,6 +260,40 @@ namespace SephiriaPlus
             }
 
             UpdateCheckpoint(hostPlayer);
+            UpdateHiddenRoomCache(hostPlayer);
+        }
+
+        private void UpdateHiddenRoomCache(PlayerAvatar hostPlayer)
+        {
+            if (!config.EnableHiddenRoomReveal || hostPlayer == null)
+            {
+                hiddenRoomEntrances.Clear();
+                return;
+            }
+
+            string floorGuid = hostPlayer.currentFloorGuid ?? string.Empty;
+            if (!string.Equals(hiddenRoomCacheFloorGuid, floorGuid, System.StringComparison.Ordinal))
+            {
+                hiddenRoomCacheFloorGuid = floorGuid;
+                hiddenRoomEntrances.Clear();
+                nextHiddenRoomScanTime = 0f;
+            }
+            if (Time.unscaledTime < nextHiddenRoomScanTime)
+            {
+                return;
+            }
+
+            nextHiddenRoomScanTime = Time.unscaledTime + HiddenRoomScanIntervalSeconds;
+            hiddenRoomEntrances.Clear();
+            HiddenRoomTriggerCollider[] entrances =
+                Object.FindObjectsByType<HiddenRoomTriggerCollider>(FindObjectsSortMode.None);
+            foreach (HiddenRoomTriggerCollider entrance in entrances)
+            {
+                if (entrance != null)
+                {
+                    hiddenRoomEntrances.Add(entrance);
+                }
+            }
         }
 
         private void MaintainExtraInventorySlots(GridInventory inventory)
@@ -512,7 +551,7 @@ namespace SephiriaPlus
 
         private void OnGUI()
         {
-            if (!NetworkServer.active)
+            if (!NetworkServer.active || Event.current == null || Event.current.type != EventType.Repaint)
             {
                 return;
             }
@@ -546,9 +585,7 @@ namespace SephiriaPlus
                 return;
             }
 
-            HiddenRoomTriggerCollider[] entrances =
-                Object.FindObjectsByType<HiddenRoomTriggerCollider>(FindObjectsSortMode.None);
-            foreach (HiddenRoomTriggerCollider entrance in entrances)
+            foreach (HiddenRoomTriggerCollider entrance in hiddenRoomEntrances)
             {
                 if (entrance == null || !entrance.gameObject.activeInHierarchy)
                 {
