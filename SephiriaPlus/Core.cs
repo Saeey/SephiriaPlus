@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.2.0")]
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.2.1")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
@@ -53,7 +53,7 @@ namespace SephiriaPlus
         public bool EnableArtifactSchoolFilter = true;
         public bool EnableHiddenRoomReveal = true;
         public bool EnableExtraWishPoolCapacity = true;
-        public int ExtraWishPoolCapacity = 50;
+        public int ExtraWishPoolCapacity = 100;
 
         public static ModConfig Load()
         {

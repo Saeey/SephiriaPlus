@@ -10,5 +10,5 @@
   "EnableArtifactSchoolFilter": true,
   "EnableHiddenRoomReveal": true,
   "EnableExtraWishPoolCapacity": true,
-  "ExtraWishPoolCapacity": 50
+  "ExtraWishPoolCapacity": 100
 }
