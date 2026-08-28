@@ -392,9 +392,12 @@ namespace SephiriaPlus
             Vector3 destinyPosition = destinyRect.position;
             Vector3 returnPosition = returnRect.position;
             Vector3 retryPosition = (destinyPosition + returnPosition) * 0.5f;
-            Vector3 spacingOffset = (returnPosition - destinyPosition) * 0.07f;
-            destinyRect.position = destinyPosition - spacingOffset;
-            returnRect.position = returnPosition + spacingOffset;
+            Vector3 buttonDirection = (returnPosition - destinyPosition).normalized;
+            float worldButtonWidth = buttonWidth * Mathf.Abs(destinyRect.lossyScale.x);
+            float visibleGap = worldButtonWidth * 0.16f;
+            float centerSpacing = worldButtonWidth + visibleGap;
+            destinyRect.position = retryPosition - buttonDirection * centerSpacing;
+            returnRect.position = retryPosition + buttonDirection * centerSpacing;
             retryRect.position = retryPosition;
             retryRect.SetAsLastSibling();
             retryButtonLayoutApplied = true;
