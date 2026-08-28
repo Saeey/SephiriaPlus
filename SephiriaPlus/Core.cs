@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.1.0")]
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.1.1")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
@@ -749,6 +749,24 @@ namespace SephiriaPlus
             return CreateFilteredArtifactChoices(serverChoices);
         }
 
+        internal void OnLocalMiraclePanelPopulated(UI_MiraclePanel panel)
+        {
+            if (!config.EnableArtifactSchoolFilter || panel == null)
+            {
+                return;
+            }
+
+            if (artifactFilterContainer == null || artifactFilterOwner != panel)
+            {
+                CreateArtifactFilterUI(panel);
+            }
+            if (artifactFilterContainer != null)
+            {
+                artifactFilterContainer.SetActive(true);
+                artifactFilterContainer.transform.SetAsLastSibling();
+            }
+        }
+
         private MiracleMetadata[] CreateFilteredArtifactChoices(MiracleMetadata[] source)
         {
             EnsureOriginalMiraclePool();
@@ -1181,6 +1199,12 @@ namespace SephiriaPlus
                 miracles = controller.FilterLocalArtifactChoices(
                     __instance, miracleController, miracles, miracleSelector);
             }
+        }
+
+        [HarmonyPostfix]
+        private static void CreateFilterAfterChoices(UI_MiraclePanel __instance)
+        {
+            SephiriaPlusController.Instance?.OnLocalMiraclePanelPopulated(__instance);
         }
     }
 }
