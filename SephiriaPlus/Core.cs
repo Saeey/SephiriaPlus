@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.2.3")]
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.2.4")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
@@ -229,55 +229,60 @@ namespace SephiriaPlus
                 MaintainExtraInventorySlots(inventory);
                 MaintainExtraWishPoolCapacity(inventory);
 
-                if (!config.EnableTalentPointMultiplier)
-                {
-                    continue;
-                }
-
-                TreeShopItemStorage storage = player.GetComponent<TreeShopItemStorage>();
-                if (storage == null || AddedPassiveField == null)
-                {
-                    continue;
-                }
-
-                int vanillaAddedPoints = (int)AddedPassiveField.GetValue(storage);
-                int instanceId = player.GetInstanceID();
-                bool isNewState = false;
-                if (!talentPointStates.TryGetValue(instanceId, out TalentPointState state))
-                {
-                    isNewState = true;
-                    state = new TalentPointState
-                    {
-                        VanillaAddedPoints = vanillaAddedPoints,
-                        LastAppliedCap = player.maxPassivePoint
-                    };
-                    talentPointStates.Add(instanceId, state);
-                }
-
-                int normalizedCap = player.maxPassivePoint;
-                if (!isNewState && vanillaAddedPoints != state.VanillaAddedPoints)
-                {
-                    // TreeShopItemStorage.Unlock subtracts only its vanilla amount.
-                    // Remove our previous bonus before applying the new multiplier.
-                    normalizedCap -= state.VanillaAddedPoints * (config.TalentPointMultiplier - 1);
-                }
-                else if (!isNewState && player.maxPassivePoint == state.LastAppliedCap)
-                {
-                    normalizedCap -= vanillaAddedPoints * (config.TalentPointMultiplier - 1);
-                }
-
-                int multipliedCap = normalizedCap + vanillaAddedPoints * (config.TalentPointMultiplier - 1);
-                if (player.maxPassivePoint != multipliedCap)
-                {
-                    player.NetworkmaxPassivePoint = multipliedCap;
-                }
-
-                state.VanillaAddedPoints = vanillaAddedPoints;
-                state.LastAppliedCap = multipliedCap;
+                ApplyTalentPointMultiplier(player);
             }
 
             UpdateCheckpoint(hostPlayer);
             UpdateHiddenRoomCache(hostPlayer);
+        }
+
+        internal void ApplyTalentPointMultiplier(PlayerAvatar player)
+        {
+            if (!config.EnableTalentPointMultiplier || player == null || !player.isServer)
+            {
+                return;
+            }
+
+            TreeShopItemStorage storage = player.GetComponent<TreeShopItemStorage>();
+            if (storage == null || AddedPassiveField == null)
+            {
+                return;
+            }
+
+            int vanillaAddedPoints = (int)AddedPassiveField.GetValue(storage);
+            int instanceId = player.GetInstanceID();
+            bool isNewState = false;
+            if (!talentPointStates.TryGetValue(instanceId, out TalentPointState state))
+            {
+                isNewState = true;
+                state = new TalentPointState
+                {
+                    VanillaAddedPoints = vanillaAddedPoints,
+                    LastAppliedCap = player.maxPassivePoint
+                };
+                talentPointStates.Add(instanceId, state);
+            }
+
+            int normalizedCap = player.maxPassivePoint;
+            if (!isNewState && vanillaAddedPoints != state.VanillaAddedPoints)
+            {
+                // TreeShopItemStorage.Unlock subtracts only its vanilla amount.
+                // Remove our previous bonus before applying the new multiplier.
+                normalizedCap -= state.VanillaAddedPoints * (config.TalentPointMultiplier - 1);
+            }
+            else if (!isNewState && player.maxPassivePoint == state.LastAppliedCap)
+            {
+                normalizedCap -= vanillaAddedPoints * (config.TalentPointMultiplier - 1);
+            }
+
+            int multipliedCap = normalizedCap + vanillaAddedPoints * (config.TalentPointMultiplier - 1);
+            if (player.maxPassivePoint != multipliedCap)
+            {
+                player.NetworkmaxPassivePoint = multipliedCap;
+            }
+
+            state.VanillaAddedPoints = vanillaAddedPoints;
+            state.LastAppliedCap = multipliedCap;
         }
 
         private void UpdateHiddenRoomCache(PlayerAvatar hostPlayer)
@@ -1255,6 +1260,19 @@ namespace SephiriaPlus
         public string Category;
         public string DisplayName;
         public TextMeshProUGUI[] Labels;
+    }
+
+    [HarmonyPatch(typeof(PlayerAvatar), nameof(PlayerAvatar.LoadPassiveStatOnServer))]
+    internal static class TalentLoadOrderPatch
+    {
+        [HarmonyPrefix]
+        private static void ApplyMultiplierBeforeLoading(PlayerAvatar __instance)
+        {
+            // The vanilla loader clamps saved points against maxPassivePoint one by
+            // one. Apply our expanded cap before that validation so saved talents
+            // survive a new game instead of requiring the player to click them again.
+            SephiriaPlusController.Instance?.ApplyTalentPointMultiplier(__instance);
+        }
     }
 
     [HarmonyPatch(typeof(KeywordDatabase), nameof(KeywordDatabase.GetConstValue))]
