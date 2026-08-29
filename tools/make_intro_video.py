@@ -10,7 +10,7 @@ W, H = 1920, 1080
 FONT = r"C:\Windows\Fonts\NotoSansSC-VF.ttf"
 FONT_B = r"C:\Windows\Fonts\NotoSansSC-VF.ttf"
 SCREENSHOT = Path(r"C:\Users\null\AppData\Local\Temp\codex-clipboard-fb35f254-7062-4167-a8d5-03c39224375f.png")
-HIDDEN_SCREENSHOT = Path(r"C:\Users\null\AppData\Local\Temp\codex-clipboard-7e7fd0ff-d087-412c-ba81-009d2bedc30d.png")
+HIDDEN_SCREENSHOT = Path(r"C:\Users\null\AppData\Local\Temp\codex-clipboard-02640e43-7b77-43bf-ad5c-4e64c7724968.png")
 
 slides = [
     {
