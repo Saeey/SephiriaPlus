@@ -11,6 +11,7 @@ FONT = r"C:\Windows\Fonts\NotoSansSC-VF.ttf"
 FONT_B = r"C:\Windows\Fonts\NotoSansSC-VF.ttf"
 SCREENSHOT = Path(r"C:\Users\null\AppData\Local\Temp\codex-clipboard-fb35f254-7062-4167-a8d5-03c39224375f.png")
 HIDDEN_SCREENSHOT = Path(r"C:\Users\null\AppData\Local\Temp\codex-clipboard-02640e43-7b77-43bf-ad5c-4e64c7724968.png")
+RETRY_SCREENSHOT = Path(r"C:\Users\null\AppData\Local\Temp\codex-clipboard-9b12f728-155c-477b-a747-2ca376c1ebad.png")
 
 slides = [
     {
@@ -50,6 +51,16 @@ slides = [
         "badge": "6 × 4  →  6 × 9",
         "voice": "容量方面，主背包从默认二十四格增加到五十四格，共增加三十格。许愿池额外增加一百容量，并同步提高开局神器发放上限。",
         "kind": "grid",
+    },
+    {
+        "kicker": "失败重试",
+        "title": "结算界面一键快速重开",
+        "subtitle": "点击“重试”或按 F8，直接恢复当前关卡的开场检查点",
+        "badge": "重试当前关卡",
+        "detail": "保留进入本关时的状态",
+        "image": str(RETRY_SCREENSHOT),
+        "voice": "挑战失败后，不需要返回基地重新跑图。结算界面会在命运刻印和返回之间增加重试按钮，点击按钮或按下 F 八，就能恢复进入当前关卡时保存的检查点。",
+        "kind": "screenshot",
     },
     {
         "kicker": "探索提示",
