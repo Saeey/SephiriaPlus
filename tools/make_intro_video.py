@@ -81,26 +81,26 @@ slides = [
     },
     {
         "kicker": "安装 · 第一步",
-        "title": "安装 BepInEx 5",
-        "subtitle": "将 BepInEx_win_x64_5.4.23.5 解压到 Sephiria.exe 所在目录",
-        "badge": "首次安装后启动一次游戏，再退出",
-        "voice": "安装前先准备 BepInEx 五。把六十四位的五点四点二十三点五版本解压到 Sephiria 点 exe 所在目录。首次安装后启动一次游戏，再退出，让框架创建所需文件夹。",
+        "title": "下载一体化安装包",
+        "subtitle": "安装包已包含 BepInEx 5.4.23.5，无需另外下载框架",
+        "badge": "解压全部文件到游戏根目录",
+        "voice": "发布包已经包含六十四位 BepInEx 五点四点二十三点五，无需另外下载框架。打开 Steam 游戏本地文件夹，把压缩包内的全部文件解压到 Sephiria 点 exe 所在目录。",
         "kind": "install",
     },
     {
         "kicker": "安装 · 第二步",
-        "title": "合并压缩包里的 BepInEx 文件夹",
-        "subtitle": "最终确认插件 DLL 与 config.json 位于同一目录",
-        "tree": ["Sephiria", "└─ BepInEx", "   └─ plugins", "      └─ SephiriaPlus", "         ├─ SephiriaPlus.dll", "         └─ config.json"],
-        "voice": "然后把发布包里的 BepInEx 文件夹合并到游戏根目录。最终应当能在 BepInEx、plugins、Sephiria Plus 目录中看到 DLL 和 config 点 json。旧版 AddOns 文件夹中的 Sephiria Plus 必须删除。",
+        "title": "确认完整安装目录",
+        "subtitle": "winhttp.dll 与 doorstop_config.ini 必须和 Sephiria.exe 在同一层",
+        "tree": ["Sephiria", "├─ winhttp.dll", "├─ doorstop_config.ini", "└─ BepInEx", "   ├─ core", "   └─ plugins/SephiriaPlus"],
+        "voice": "安装后，确认 winhttp 点 dll 和 doorstop 配置文件与游戏程序位于同一层，同时保留完整的 BepInEx core 目录和 Sephiria Plus 插件目录。旧版 AddOns 文件夹中的 Sephiria Plus 必须删除。",
         "kind": "tree",
     },
     {
         "kicker": "配置与开关",
-        "title": "所有功能均可单独调整",
-        "subtitle": "修改 config.json 后需要重启游戏",
-        "tree": ["RerollDiceTarget: 99", "TalentPointMultiplier: 10", "ExtraInventorySlots: 30", "ExtraWishPoolCapacity: 100", "HiddenRoomMarkerScale: 5.0"],
-        "voice": "所有主要功能都可以在 config 点 json 中单独开关或修改数值。默认刷新次数九十九，天赋十倍，背包加三十，许愿池加一百，隐藏房间标记五倍。修改后需要重启游戏。",
+        "title": "每个功能都可以独立开关",
+        "subtitle": "BepInEx/plugins/SephiriaPlus/config.json · true 开启，false 关闭",
+        "tree": ["无限刷新：EnableInfiniteReroll = true", "天赋点数：EnableTalentPointMultiplier = true", "背包扩容：EnableExtraInventorySlots = true", "失败重试：EnableCheckpointRetry = true", "神器筛选：EnableArtifactSchoolFilter = true", "隐藏房间：EnableHiddenRoomReveal = true", "许愿池扩容：EnableExtraWishPoolCapacity = true"],
+        "voice": "打开 BepInEx、plugins、Sephiria Plus 目录中的 config 点 json，就能独立控制每一项功能。将对应的 Enable 项设为 true 表示开启，设为 false 表示关闭。无限刷新、天赋倍率、背包扩容、失败重试、神器筛选、隐藏房间提示和许愿池扩容都可以分别设置。保存配置后需要重启游戏。",
         "kind": "tree",
     },
     {
@@ -215,7 +215,7 @@ def draw_slide(slide, idx):
         d.text((110, 180), slide["title"], font=font(68, True), fill="white")
         d.text((112, 280), slide["subtitle"], font=font(29), fill="#adb9ca")
         rounded(d, (280, 380, 1640, 880), 30, "#101724", "#40536d", 2)
-        tree_spacing = 70 if len(slide["tree"]) > 5 else 80
+        tree_spacing = 62 if len(slide["tree"]) > 6 else (70 if len(slide["tree"]) > 5 else 80)
         for i, line in enumerate(slide["tree"]):
             color = "#67dcff" if i < 2 else ("#ffce6b" if i == 2 else "white")
             d.text((390, 420+i*tree_spacing), line, font=font(38, True), fill=color)

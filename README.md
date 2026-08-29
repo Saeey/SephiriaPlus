@@ -17,11 +17,11 @@ SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.x 已
 
 ## 安装
 
-1. 从 BepInEx 官方 Releases 下载 `BepInEx_win_x64_5.4.23.5.zip`。
-2. 将 BepInEx 压缩包内容解压到游戏根目录，即 `Sephiria.exe` 所在目录。
-3. 启动一次游戏，让 BepInEx 创建目录，然后退出游戏。
-4. 将本项目发布包中的 `BepInEx` 文件夹合并到游戏根目录。
-5. 最终应存在：
+1. 下载 `SephiriaPlus-v2.2.4.zip`。
+2. 将压缩包内的全部内容直接解压到游戏根目录，即 `Sephiria.exe` 所在目录。
+3. 启动游戏；发布包已内置 Windows x64 版 BepInEx 5.4.23.5，无需另外下载。
+4. 确认游戏根目录存在 `winhttp.dll`、`doorstop_config.ini` 和 `BepInEx` 文件夹。
+5. 插件文件位于：
    - `BepInEx/plugins/SephiriaPlus/SephiriaPlus.dll`
    - `BepInEx/plugins/SephiriaPlus/config.json`
 
@@ -34,6 +34,8 @@ SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.x 已
 ## 配置
 
 编辑 `BepInEx/plugins/SephiriaPlus/config.json`，保存后重启游戏：
+
+配置文件内含中文说明。所有 `Enable...` 项均可独立设置，`true` 为开启，`false` 为关闭。
 
 ```json
 {
@@ -52,6 +54,22 @@ SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.x 已
   "ExtraWishPoolCapacity": 100
 }
 ```
+
+## v1.4.0 与 v2.2.4 对比
+
+| 项目 | v1.4.0 | v2.2.4 |
+| --- | --- | --- |
+| 模组架构 | 游戏原生 AddOn | BepInEx 5 + HarmonyX |
+| 安装方式 | 复制到 `AddOns` | 内置 BepInEx 的一体化安装包 |
+| 无限刷新 | 自动补充至 99 | 保留，可独立开关和调整目标值 |
+| 天赋点数 | 命运刻印额外点数 ×10 | 保留，并修复开局需要重新加点的问题 |
+| 背包扩容 | +18 格 | +30 格，并修复天赋更新后失效的问题 |
+| 失败重试 | 结算界面重试按钮 | 重试按钮 + F8 快捷键 |
+| 隐藏房间 | 无 | 入口提示，默认放大 5 倍且优化扫描性能 |
+| 许愿池 | 无 | 容量 +100，并同步扩展开局发放上限 |
+| 配置 | 基础开关 | 每项独立开关并附中文说明 |
+
+从 1.x 升级前必须删除旧的 `AddOns/SephiriaPlus`，避免 AddOn 版与 BepInEx 版同时加载。
 
 ## 构建
 

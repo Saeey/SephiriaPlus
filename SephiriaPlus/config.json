@@ -1,15 +1,23 @@
 {
+  "_说明": "所有 Enable 开关均可独立设置：true 为开启，false 为关闭。修改后请重启游戏。",
+  "_无限刷新": "自动把刷新次数补充到指定数量。",
   "EnableInfiniteReroll": true,
   "RerollDiceTarget": 99,
+  "_天赋点数": "使命运刻印提供的额外天赋点按倍率增加。",
   "EnableTalentPointMultiplier": true,
   "TalentPointMultiplier": 10,
+  "_背包扩容": "增加主背包的可用格子数量。",
   "EnableExtraInventorySlots": true,
   "ExtraInventorySlots": 30,
+  "_失败重试": "在结算界面显示重试按钮，并启用快捷键。",
   "EnableCheckpointRetry": true,
   "CheckpointRetryKey": "F8",
+  "_神器流派筛选": "在神器刷新界面提供本机流派筛选。",
   "EnableArtifactSchoolFilter": true,
+  "_隐藏房间提示": "显示隐藏房间入口提示，并可调整标记大小。",
   "EnableHiddenRoomReveal": true,
   "HiddenRoomMarkerScale": 5.0,
+  "_许愿池扩容": "增加许愿池选择容量和开局神器发放上限。",
   "EnableExtraWishPoolCapacity": true,
   "ExtraWishPoolCapacity": 100
 }
