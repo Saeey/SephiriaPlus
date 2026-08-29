@@ -14,7 +14,7 @@ using UnityEngine.UI;
 
 namespace SephiriaPlus
 {
-    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.2.2")]
+    [BepInPlugin("com.null.sephiriaplus", "SephiriaPlus", "2.2.3")]
     public sealed class Plugin : BaseUnityPlugin
     {
         private const string LogPrefix = "[SephiriaPlus]";
@@ -52,6 +52,7 @@ namespace SephiriaPlus
         public string CheckpointRetryKey = "F8";
         public bool EnableArtifactSchoolFilter = true;
         public bool EnableHiddenRoomReveal = true;
+        public float HiddenRoomMarkerScale = 5f;
         public bool EnableExtraWishPoolCapacity = true;
         public int ExtraWishPoolCapacity = 100;
 
@@ -77,6 +78,7 @@ namespace SephiriaPlus
                 config.RerollDiceTarget = Mathf.Clamp(config.RerollDiceTarget, 0, 9999);
                 config.TalentPointMultiplier = Mathf.Clamp(config.TalentPointMultiplier, 1, 100);
                 config.ExtraInventorySlots = Mathf.Clamp(config.ExtraInventorySlots, 0, short.MaxValue);
+                config.HiddenRoomMarkerScale = Mathf.Clamp(config.HiddenRoomMarkerScale, 1f, 10f);
                 config.ExtraWishPoolCapacity = Mathf.Clamp(config.ExtraWishPoolCapacity, 0, 9999);
                 return config;
             }
@@ -94,7 +96,7 @@ namespace SephiriaPlus
                    ", inventory=" + EnableExtraInventorySlots + " (+" + ExtraInventorySlots + ")" +
                    ", checkpointRetry=" + EnableCheckpointRetry + " (" + CheckpointRetryKey + ")" +
                    ", artifactFilter=" + EnableArtifactSchoolFilter +
-                   ", hiddenRooms=" + EnableHiddenRoomReveal +
+                   ", hiddenRooms=" + EnableHiddenRoomReveal + " (x" + HiddenRoomMarkerScale + ")" +
                    ", wishPool=" + EnableExtraWishPoolCapacity + " (+" + ExtraWishPoolCapacity + ")";
         }
     }
@@ -624,7 +626,7 @@ namespace SephiriaPlus
             {
                 hiddenRoomStyle = new GUIStyle(GUI.skin.label)
                 {
-                    fontSize = 20,
+                    fontSize = Mathf.RoundToInt(20f * config.HiddenRoomMarkerScale),
                     fontStyle = FontStyle.Bold,
                     alignment = TextAnchor.MiddleCenter,
                     normal = { textColor = new Color(1f, 0.3f, 0.72f) }
@@ -655,7 +657,13 @@ namespace SephiriaPlus
                 float pulse = 0.8f + Mathf.Sin(Time.unscaledTime * 4f) * 0.2f;
                 Color oldColor = GUI.color;
                 GUI.color = new Color(1f, 1f, 1f, pulse);
-                GUI.Label(new Rect(screen.x - 90f, Screen.height - screen.y - 58f, 180f, 42f),
+                float markerScale = config.HiddenRoomMarkerScale;
+                float markerWidth = 180f * markerScale;
+                float markerHeight = 42f * markerScale;
+                // Keep the enlarged marker's bottom edge at the same distance above
+                // the entrance instead of letting the larger rectangle cover it.
+                float markerY = Screen.height - screen.y - markerHeight - 16f;
+                GUI.Label(new Rect(screen.x - markerWidth * 0.5f, markerY, markerWidth, markerHeight),
                     "▼ 隐藏房间", hiddenRoomStyle);
                 GUI.color = oldColor;
             }

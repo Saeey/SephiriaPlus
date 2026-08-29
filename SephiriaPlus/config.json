@@ -9,6 +9,7 @@
   "CheckpointRetryKey": "F8",
   "EnableArtifactSchoolFilter": true,
   "EnableHiddenRoomReveal": true,
+  "HiddenRoomMarkerScale": 5.0,
   "EnableExtraWishPoolCapacity": true,
   "ExtraWishPoolCapacity": 100
 }
