@@ -29,6 +29,8 @@ SephiriaPlus 是《赛菲莉娅（Sephiria）》的综合便利性 Mod。2.x 已
 
 详细步骤见 [安装手册](./安装手册.md)。
 
+从 v1.4.0 至今的版本变化见 [更新日志](./更新日志.md)。
+
 ## 配置
 
 编辑 `BepInEx/plugins/SephiriaPlus/config.json`，保存后重启游戏：
